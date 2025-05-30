@@ -4,7 +4,7 @@
 		{
 			"label": "Run Flask App",
 			"type": "shell",
-			"command": "source venv/bin/activate && flask run --port=5001",
+			"command": "source venv/bin/activate && flask run --port=5080",
 			"group": "build",
 			"isBackground": true
 		}

@@ -2,6 +2,11 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
+import argparse
+
+# Create argument parser
+parser = argparse.ArgumentParser(description='Flask Web Application')
+parser.add_argument('--port', type=int, default=5000, help='Port number to run the server on')
 
 app = Flask(__name__)
 
@@ -193,4 +198,5 @@ def manage_url_tags(url_id):
         return jsonify({'success': True})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    args = parser.parse_args()
+    app.run(debug=True, port=args.port)
