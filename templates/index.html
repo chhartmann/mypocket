@@ -12,13 +12,25 @@
     </div>
 </div>
 
-<!-- Tag Filter Section -->
+<!-- Filter Section -->
 <div class="card mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="card-title mb-0">Filter by Tags</h5>
-            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Clear Filter</a>
+            <h5 class="card-title mb-0">Filters</h5>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Clear All</a>
         </div>
+        
+        <!-- Search Field -->
+        <div class="mb-3">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" id="search-input" 
+                       placeholder="Search in URLs, notes, and descriptions..."
+                       value="{{ search_query }}">
+            </div>
+        </div>
+
+        <!-- Tag Filters -->
         <div class="d-flex flex-wrap gap-2">
             {% for tag in all_tags %}
             <div class="form-check">
@@ -114,26 +126,40 @@ if (savedView === 'list') {
     document.getElementById('tile-view').click();
 }
 
+// Function to update URL with current filters
+function updateFilters() {
+    const viewType = document.querySelector('input[name="view-type"]:checked').id;
+    const viewTypeValue = viewType === 'tile-view' ? 'tile' : 'list';
+    const searchQuery = document.getElementById('search-input').value.trim();
+    
+    // Get all selected tags
+    const selectedTags = Array.from(document.querySelectorAll('.tag-filter:checked'))
+        .map(cb => cb.value);
+    
+    // Build the URL with current parameters
+    const params = new URLSearchParams();
+    if (selectedTags.length > 0) {
+        selectedTags.forEach(tag => params.append('tags', tag));
+    }
+    if (searchQuery) {
+        params.set('search', searchQuery);
+    }
+    params.set('view', viewTypeValue);
+    
+    // Navigate to the new URL
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
 // Auto-apply tag filter when checkboxes change
 document.querySelectorAll('.tag-filter').forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
-        const viewType = document.querySelector('input[name="view-type"]:checked').id;
-        const viewTypeValue = viewType === 'tile-view' ? 'tile' : 'list';
-        
-        // Get all selected tags
-        const selectedTags = Array.from(document.querySelectorAll('.tag-filter:checked'))
-            .map(cb => cb.value);
-        
-        // Build the URL with current parameters
-        const params = new URLSearchParams();
-        if (selectedTags.length > 0) {
-            selectedTags.forEach(tag => params.append('tags', tag));
-        }
-        params.set('view', viewTypeValue);
-        
-        // Navigate to the new URL
-        window.location.href = `${window.location.pathname}?${params.toString()}`;
-    });
+    checkbox.addEventListener('change', updateFilters);
+});
+
+// Add debounced search
+let searchTimeout;
+document.getElementById('search-input').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(updateFilters, 300); // Wait 300ms after user stops typing
 });
 </script>
 {% endblock %}

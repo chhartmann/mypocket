@@ -58,9 +58,21 @@ with app.app_context():
 def index():
     # Get selected tag IDs from query parameters
     selected_tag_ids = request.args.getlist('tags')
+    search_query = request.args.get('search', '').strip()
     
     # Base query
     query = Url.query
+    
+    # Apply search filter if search query exists
+    if search_query:
+        search_term = f'%{search_query}%'
+        query = query.filter(
+            db.or_(
+                Url.url.ilike(search_term),
+                Url.notes.ilike(search_term),
+                Url.summary.ilike(search_term)
+            )
+        )
     
     # Apply tag filter if tags are selected
     if selected_tag_ids:
@@ -80,7 +92,8 @@ def index():
                          urls=urls, 
                          view_type=view_type,
                          all_tags=all_tags,
-                         selected_tag_ids=selected_tag_ids)
+                         selected_tag_ids=selected_tag_ids,
+                         search_query=search_query)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_url():
