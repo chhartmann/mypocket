@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Manage Tags</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to URLs</a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <form method="POST" class="mb-4">
+            <div class="input-group">
+                <input type="text" class="form-control" name="tag_name" placeholder="New tag name" required>
+                <button type="submit" class="btn btn-primary">Add Tag</button>
+            </div>
+        </form>
+
+        <div class="list-group" id="tag-list">
+            {% for tag in tags %}
+            <div class="list-group-item d-flex justify-content-between align-items-center" data-tag-id="{{ tag.id }}">
+                <span class="tag-name">{{ tag.name }}</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary edit-tag">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger delete-tag">Delete</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.edit-tag').forEach(button => {
+    button.addEventListener('click', function() {
+        const item = this.closest('.list-group-item');
+        const tagId = item.dataset.tagId;
+        const nameSpan = item.querySelector('.tag-name');
+        const currentName = nameSpan.textContent;
+        
+        const newName = prompt('Enter new tag name:', currentName);
+        if (newName && newName !== currentName) {
+            fetch(`/tags/${tagId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: newName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    nameSpan.textContent = newName;
+                } else {
+                    alert(data.message || 'Failed to update tag');
+                }
+            });
+        }
+    });
+});
+
+document.querySelectorAll('.delete-tag').forEach(button => {
+    button.addEventListener('click', function() {
+        const item = this.closest('.list-group-item');
+        const tagId = item.dataset.tagId;
+        
+        if (confirm('Are you sure you want to delete this tag?')) {
+            fetch(`/tags/${tagId}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    item.remove();
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

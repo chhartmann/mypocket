@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>My URL Collection</h1>
+    <div class="btn-group" role="group" aria-label="View toggle">
+        <input type="radio" class="btn-check" name="view-type" id="tile-view" autocomplete="off" {% if view_type != 'list' %}checked{% endif %}>
+        <label class="btn btn-outline-primary" for="tile-view"><i class="bi bi-grid-3x3-gap"></i> Tiles</label>
+        
+        <input type="radio" class="btn-check" name="view-type" id="list-view" autocomplete="off" {% if view_type == 'list' %}checked{% endif %}>
+        <label class="btn btn-outline-primary" for="list-view"><i class="bi bi-list-ul"></i> List</label>
+    </div>
+</div>
+
+<div class="row" id="tile-view-content" {% if view_type == 'list' %}style="display: none;"{% endif %}>
+    {% for url in urls %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card url-card">
+            {% if url.image %}
+            <img src="{{ url_for('static', filename='images/' + url.image) }}" class="card-img-top url-image" alt="URL preview">
+            {% endif %}
+            <div class="card-body">
+                <h5 class="card-title">
+                    <a href="{{ url.url }}" target="_blank">{{ url.url|truncate(50) }}</a>
+                </h5>
+                <p class="card-text"><strong>Notes:</strong> {{ url.notes }}</p>
+                <p class="card-text">
+                    {% for tag in url.tags %}
+                    <span class="badge bg-secondary me-1">{{ tag.name }}</span>
+                    {% endfor %}
+                </p>
+                <p class="card-text"><small class="text-muted">Added: {{ url.created_at.strftime('%Y-%m-%d %H:%M') }}</small></p>
+                <div class="btn-group">
+                    <a href="{{ url_for('edit_url', id=url.id) }}" class="btn btn-primary">Edit</a>
+                    <a href="{{ url_for('delete_url', id=url.id) }}" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this URL?')">Delete</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="list-group" id="list-view-content" {% if view_type != 'list' %}style="display: none;"{% endif %}>
+    {% for url in urls %}
+    <div class="list-group-item">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="ms-2 me-auto">
+                <div class="d-flex align-items-center">
+                    {% if url.image %}
+                    <img src="{{ url_for('static', filename='images/' + url.image) }}" class="me-3" style="height: 50px; width: 50px; object-fit: cover;" alt="URL preview">
+                    {% endif %}
+                    <div>
+                        <h5 class="mb-1"><a href="{{ url.url }}" target="_blank">{{ url.url|truncate(50) }}</a></h5>
+                        <p class="mb-1">{{ url.notes }}</p>
+                        <div class="mb-1">
+                            {% for tag in url.tags %}
+                            <span class="badge bg-secondary me-1">{{ tag.name }}</span>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Added: {{ url.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="btn-group">
+                <a href="{{ url_for('edit_url', id=url.id) }}" class="btn btn-primary btn-sm">Edit</a>
+                <a href="{{ url_for('delete_url', id=url.id) }}" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this URL?')">Delete</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+document.getElementById('tile-view').addEventListener('change', function() {
+    document.getElementById('tile-view-content').style.display = 'flex';
+    document.getElementById('list-view-content').style.display = 'none';
+    localStorage.setItem('view-type', 'tile');
+});
+
+document.getElementById('list-view').addEventListener('change', function() {
+    document.getElementById('tile-view-content').style.display = 'none';
+    document.getElementById('list-view-content').style.display = 'block';
+    localStorage.setItem('view-type', 'list');
+});
+
+// Load saved view preference
+const savedView = localStorage.getItem('view-type');
+if (savedView === 'list') {
+    document.getElementById('list-view').click();
+} else {
+    document.getElementById('tile-view').click();
+}
+</script>
+{% endblock %}

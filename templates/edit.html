@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Edit URL Entry</h1>
+
+<div class="row">
+    <div class="col-md-8">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="url" class="form-label">URL</label>
+                <input type="url" class="form-control" id="url" name="url" value="{{ url.url }}" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="image" class="form-label">Image</label>
+                {% if url.image %}
+                <div class="mb-2">
+                    <img src="{{ url_for('static', filename='images/' + url.image) }}" style="max-height: 100px;" alt="Current image">
+                    <br>
+                    <small class="text-muted">Current image: {{ url.image }}</small>
+                </div>
+                {% endif %}
+                <input type="file" class="form-control" id="image" name="image" accept="image/*">
+                <small class="text-muted">Leave empty to keep current image</small>
+            </div>
+            
+            <div class="mb-3">
+                <label for="summary" class="form-label">Summary</label>
+                <textarea class="form-control" id="summary" name="summary" rows="3">{{ url.summary }}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="notes" class="form-label">Notes</label>
+                <textarea class="form-control" id="notes" name="notes" rows="3">{{ url.notes }}</textarea>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Tags</label>
+                <div class="tag-container">
+                    {% for tag in tags %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input tag-checkbox" type="checkbox" 
+                               id="tag{{ tag.id }}" value="{{ tag.id }}"
+                               {% if tag in url.tags %}checked{% endif %}
+                               data-url-id="{{ url.id }}">
+                        <label class="form-check-label" for="tag{{ tag.id }}">{{ tag.name }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+
+            <script>
+            document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const urlId = this.dataset.urlId;
+                    const tagId = this.value;
+                    const method = this.checked ? 'POST' : 'DELETE';
+                    
+                    fetch(`/url/${urlId}/tags`, {
+                        method: method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ tag_id: tagId })
+                    });
+                });
+            });
+            </script>
+        </form>
+    </div>
+</div>
+{% endblock %}
