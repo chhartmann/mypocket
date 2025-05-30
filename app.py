@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 from datetime import datetime
 import os
 import argparse
@@ -24,8 +25,9 @@ db = SQLAlchemy(app)
 
 # URL-Tag association table
 url_tags = db.Table('url_tags',
-    db.Column('url_id', db.Integer, db.ForeignKey('url.id'), primary_key=True),
-    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+    db.Column('url_id', db.Integer, db.ForeignKey('url.id')),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
+    db.UniqueConstraint('url_id', 'tag_id', name='uix_url_tag')
 )
 
 class Tag(db.Model):
@@ -41,8 +43,15 @@ class Url(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Create database tables
+# Create database tables and enable foreign keys
 with app.app_context():
+    # Enable SQLite foreign key support
+    @event.listens_for(db.engine, 'connect')
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+    
     db.create_all()
 
 @app.route('/')
@@ -181,21 +190,27 @@ def update_tag(id):
 
 @app.route('/url/<int:url_id>/tags', methods=['POST', 'DELETE'])
 def manage_url_tags(url_id):
-    url = Url.query.get_or_404(url_id)
-    if request.method == 'POST':
+    try:
+        url = Url.query.get_or_404(url_id)
         tag_id = request.json.get('tag_id')
+        if not tag_id:
+            return jsonify({'success': False, 'message': 'Tag ID is required'}), 400
+            
         tag = Tag.query.get_or_404(tag_id)
-        if tag not in url.tags:
-            url.tags.append(tag)
-            db.session.commit()
-        return jsonify({'success': True})
-    elif request.method == 'DELETE':
-        tag_id = request.json.get('tag_id')
-        tag = Tag.query.get_or_404(tag_id)
-        if tag in url.tags:
-            url.tags.remove(tag)
-            db.session.commit()
-        return jsonify({'success': True})
+        
+        if request.method == 'POST':
+            if tag not in url.tags:
+                url.tags.append(tag)
+                db.session.commit()
+            return jsonify({'success': True})
+        elif request.method == 'DELETE':
+            if tag in url.tags:
+                url.tags.remove(tag)
+                db.session.commit()
+            return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':
     args = parser.parse_args()

@@ -54,18 +54,31 @@
 
             <script>
             document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
+                checkbox.addEventListener('change', async function(e) {
                     const urlId = this.dataset.urlId;
                     const tagId = this.value;
                     const method = this.checked ? 'POST' : 'DELETE';
                     
-                    fetch(`/url/${urlId}/tags`, {
-                        method: method,
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ tag_id: tagId })
-                    });
+                    try {
+                        const response = await fetch(`/url/${urlId}/tags`, {
+                            method: method,
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ tag_id: tagId })
+                        });
+                        
+                        const data = await response.json();
+                        if (!response.ok || !data.success) {
+                            // Revert the checkbox state if the operation failed
+                            this.checked = !this.checked;
+                            alert(data.message || 'Failed to update tag');
+                        }
+                    } catch (error) {
+                        // Revert the checkbox state if there was an error
+                        this.checked = !this.checked;
+                        alert('Failed to update tag: ' + error.message);
+                    }
                 });
             });
             </script>
