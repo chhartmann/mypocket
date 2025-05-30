@@ -56,9 +56,31 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    urls = Url.query.order_by(Url.created_at.desc()).all()
+    # Get selected tag IDs from query parameters
+    selected_tag_ids = request.args.getlist('tags')
+    
+    # Base query
+    query = Url.query
+    
+    # Apply tag filter if tags are selected
+    if selected_tag_ids:
+        # Convert string IDs to integers
+        tag_ids = [int(tag_id) for tag_id in selected_tag_ids]
+        # Filter URLs that have ALL selected tags
+        query = query.filter(Url.tags.any(Tag.id.in_(tag_ids)))
+    
+    # Order by creation date
+    urls = query.order_by(Url.created_at.desc()).all()
     view_type = request.args.get('view', 'tile')  # Default to tile view
-    return render_template('index.html', urls=urls, view_type=view_type)
+    
+    # Get all tags for the filter
+    all_tags = Tag.query.order_by(Tag.name).all()
+    
+    return render_template('index.html', 
+                         urls=urls, 
+                         view_type=view_type,
+                         all_tags=all_tags,
+                         selected_tag_ids=selected_tag_ids)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_url():

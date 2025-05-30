@@ -12,6 +12,29 @@
     </div>
 </div>
 
+<!-- Tag Filter Section -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Filter by Tags</h5>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Clear Filter</a>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            {% for tag in all_tags %}
+            <div class="form-check">
+                <input class="form-check-input tag-filter" type="checkbox" 
+                       name="tags" value="{{ tag.id }}" 
+                       id="filter-tag-{{ tag.id }}"
+                       {% if tag.id|string in selected_tag_ids %}checked{% endif %}>
+                <label class="form-check-label" for="filter-tag-{{ tag.id }}">
+                    {{ tag.name }}
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <div class="row" id="tile-view-content" {% if view_type == 'list' %}style="display: none;"{% endif %}>
     {% for url in urls %}
     <div class="col-md-6 col-lg-4">
@@ -90,5 +113,27 @@ if (savedView === 'list') {
 } else {
     document.getElementById('tile-view').click();
 }
+
+// Auto-apply tag filter when checkboxes change
+document.querySelectorAll('.tag-filter').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const viewType = document.querySelector('input[name="view-type"]:checked').id;
+        const viewTypeValue = viewType === 'tile-view' ? 'tile' : 'list';
+        
+        // Get all selected tags
+        const selectedTags = Array.from(document.querySelectorAll('.tag-filter:checked'))
+            .map(cb => cb.value);
+        
+        // Build the URL with current parameters
+        const params = new URLSearchParams();
+        if (selectedTags.length > 0) {
+            selectedTags.forEach(tag => params.append('tags', tag));
+        }
+        params.set('view', viewTypeValue);
+        
+        // Navigate to the new URL
+        window.location.href = `${window.location.pathname}?${params.toString()}`;
+    });
+});
 </script>
 {% endblock %}
