@@ -47,6 +47,7 @@
                     </div>
                     {% endfor %}
                 </div>
+                <input type="hidden" name="tags" id="tags-input" value="{{ url.tags|map(attribute='name')|join(',') }}">
             </div>
             
             <button type="submit" class="btn btn-primary">Save Changes</button>
@@ -73,6 +74,9 @@
                             // Revert the checkbox state if the operation failed
                             this.checked = !this.checked;
                             alert(data.message || 'Failed to update tag');
+                        } else {
+                            // Update the hidden input with current tag names
+                            updateTagsInput();
                         }
                     } catch (error) {
                         // Revert the checkbox state if there was an error
@@ -81,6 +85,12 @@
                     }
                 });
             });
+
+            function updateTagsInput() {
+                const checkedTags = Array.from(document.querySelectorAll('.tag-checkbox:checked'))
+                    .map(checkbox => checkbox.nextElementSibling.textContent);
+                document.getElementById('tags-input').value = checkedTags.join(',');
+            }
             </script>
         </form>
     </div>

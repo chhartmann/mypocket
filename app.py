@@ -122,7 +122,7 @@ def edit_url(id):
         url.url = request.form.get('url')
         url.summary = request.form.get('summary')
         url.notes = request.form.get('notes')
-        tags = request.form.get('tags')  # Get tags from the form
+        tags = request.form.get('tags', '')  # Get tags from the form
         
         # Handle image upload
         if 'image' in request.files:
@@ -143,7 +143,7 @@ def edit_url(id):
         # Handle tags
         url.tags.clear()  # Clear existing tags
         if tags:
-            tag_names = [tag.strip() for tag in tags.split(',')]
+            tag_names = [tag.strip() for tag in tags.split(',') if tag.strip()]
             for tag_name in tag_names:
                 tag = Tag.query.filter_by(name=tag_name).first()
                 if not tag:
