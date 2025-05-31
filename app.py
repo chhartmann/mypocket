@@ -108,7 +108,7 @@ def fetch_webpage_title(url):
 
 # Create argument parser
 parser = argparse.ArgumentParser(description='Flask Web Application')
-parser.add_argument('--port', type=int, default=5000, help='Port number to run the server on')
+parser.add_argument('--port', type=int, help='Port number to run the server on')
 
 @app.route('/')
 @login_required

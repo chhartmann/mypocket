@@ -5,3 +5,6 @@ Flask-JWT-Extended==4.7.1
 bcrypt==4.3.0
 Pillow==9.5.0
 Werkzeug==2.3.6
+requests==2.31.0
+beautifulsoup4==4.12.2
+SQLAlchemy==2.0.15
