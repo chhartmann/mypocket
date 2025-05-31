@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Import URLs from CSV</h2>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="csv_file" class="form-label">Choose CSV file</label>
+            <input type="file" class="form-control" id="csv_file" name="csv_file" accept=".csv" required>
+        </div>
+        
+        {% if headers %}
+        <div class="mb-3">
+            <h4>Map CSV columns to fields:</h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <label for="url_column" class="form-label">URL Column (required)</label>
+                        <select class="form-select" name="url_column" required>
+                            <option value="">Select column</option>
+                            {% for header in headers %}
+                            <option value="{{ header }}">{{ header }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label for="title_column" class="form-label">Title Column</label>
+                        <select class="form-select" name="title_column">
+                            <option value="">None</option>
+                            {% for header in headers %}
+                            <option value="{{ header }}">{{ header }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="created_at_column" class="form-label">Created At Column</label>
+                        <select class="form-select" name="created_at_column">
+                            <option value="">None</option>
+                            {% for header in headers %}
+                            <option value="{{ header }}">{{ header }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="tags_column" class="form-label">Tags Column</label>
+                        <select class="form-select" name="tags_column">
+                            <option value="">None</option>
+                            {% for header in headers %}
+                            <option value="{{ header }}">{{ header }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary">
+            {% if headers %}Import Data{% else %}Upload CSV{% endif %}
+        </button>
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
 from datetime import datetime
@@ -7,6 +7,9 @@ import argparse
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
+import csv
+import io
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -126,7 +129,6 @@ def add_url():
             image = request.files['image']
             if image.filename:
                 # Secure the filename and save the file
-                from werkzeug.utils import secure_filename
                 image_filename = secure_filename(image.filename)
                 image.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
 
@@ -195,7 +197,6 @@ def edit_url(id):
                         os.remove(old_image_path)
                 
                 # Save new image
-                from werkzeug.utils import secure_filename
                 image_filename = secure_filename(image.filename)
                 image.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
                 url.image = image_filename
@@ -271,6 +272,102 @@ def manage_url_tags(url_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/import', methods=['GET', 'POST'])
+def import_csv():
+    if request.method == 'POST':
+        if 'csv_file' not in request.files:
+            flash('No file uploaded', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['csv_file']
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(request.url)
+        
+        if not file.filename.endswith('.csv'):
+            flash('Please upload a CSV file', 'danger')
+            return redirect(request.url)
+
+        # Read the CSV file
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_input = csv.reader(stream)
+        
+        # Get headers from the first row
+        try:
+            headers = next(csv_input)
+        except StopIteration:
+            flash('CSV file is empty', 'danger')
+            return redirect(request.url)
+
+        # If this is the first step (uploading file), show the column mapping form
+        if 'url_column' not in request.form:
+            return render_template('import.html', headers=headers)
+
+        # Get the column mappings from the form
+        url_column = headers.index(request.form['url_column'])
+        title_column = headers.index(request.form['title_column']) if request.form.get('title_column') else None
+        created_at_column = headers.index(request.form['created_at_column']) if request.form.get('created_at_column') else None
+        tags_column = headers.index(request.form['tags_column']) if request.form.get('tags_column') else None
+
+        # Process the data
+        imported_count = 0
+        for row in csv_input:
+            try:
+                # Skip empty rows
+                if not any(row):
+                    continue
+
+                url = row[url_column].strip()
+                if not url:
+                    continue
+
+                # Create new URL entry
+                new_url = Url(url=url)
+                
+                # Set title if provided, otherwise fetch from webpage
+                if title_column is not None:
+                    new_url.title = row[title_column].strip() or fetch_webpage_title(url)
+                else:
+                    new_url.title = fetch_webpage_title(url)
+
+                # Set created_at if provided
+                if created_at_column is not None:
+                    try:
+                        created_at = datetime.strptime(row[created_at_column].strip(), '%Y-%m-%d %H:%M:%S')
+                        new_url.created_at = created_at
+                    except ValueError:
+                        pass
+
+                # Add tags if provided
+                if tags_column is not None and row[tags_column].strip():
+                    tag_names = [t.strip() for t in row[tags_column].split(',')]
+                    for tag_name in tag_names:
+                        if tag_name:
+                            tag = Tag.query.filter_by(name=tag_name).first()
+                            if not tag:
+                                tag = Tag(name=tag_name)
+                                db.session.add(tag)
+                            new_url.tags.append(tag)
+
+                db.session.add(new_url)
+                imported_count += 1
+
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error importing row: {str(e)}', 'danger')
+                return redirect(url_for('import_csv'))
+
+        try:
+            db.session.commit()
+            flash(f'Successfully imported {imported_count} URLs', 'success')
+            return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error saving to database: {str(e)}', 'danger')
+            return redirect(url_for('import_csv'))
+
+    return render_template('import.html', headers=None)
 
 if __name__ == '__main__':
     args = parser.parse_args()
