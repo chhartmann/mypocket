@@ -454,6 +454,60 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+# Profile settings routes
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html')
+
+@app.route('/settings/username', methods=['POST'])
+@login_required
+def update_username():
+    new_username = request.form.get('new_username')
+    current_password = request.form.get('current_password')
+    
+    if not new_username or not current_password:
+        flash('All fields are required', 'danger')
+        return redirect(url_for('settings'))
+    
+    if not current_user.check_password(current_password):
+        flash('Current password is incorrect', 'danger')
+        return redirect(url_for('settings'))
+    
+    # Check if username already exists
+    if User.query.filter_by(username=new_username).first():
+        flash('Username already exists', 'danger')
+        return redirect(url_for('settings'))
+    
+    current_user.username = new_username
+    db.session.commit()
+    flash('Username updated successfully', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/settings/password', methods=['POST'])
+@login_required
+def update_password():
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+    
+    if not all([current_password, new_password, confirm_password]):
+        flash('All fields are required', 'danger')
+        return redirect(url_for('settings'))
+    
+    if not current_user.check_password(current_password):
+        flash('Current password is incorrect', 'danger')
+        return redirect(url_for('settings'))
+    
+    if new_password != confirm_password:
+        flash('New passwords do not match', 'danger')
+        return redirect(url_for('settings'))
+    
+    current_user.set_password(new_password)
+    db.session.commit()
+    flash('Password updated successfully', 'success')
+    return redirect(url_for('settings'))
+
 # API routes for token authentication
 @app.route('/api/token', methods=['POST'])
 def get_token():
