@@ -125,6 +125,49 @@
     {% endfor %}
 </div>
 
+<!-- Pagination Controls -->
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.prev_num, view=view_type, search=search_query, tags=selected_tag_ids) }}">Previous</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Previous</span>
+            </li>
+        {% endif %}
+
+        {% for page_num in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+            {% if page_num %}
+                {% if page_num == pagination.page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('index', page=page_num, view=view_type, search=search_query, tags=selected_tag_ids) }}">{{ page_num }}</a>
+                    </li>
+                {% endif %}
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('index', page=pagination.next_num, view=view_type, search=search_query, tags=selected_tag_ids) }}">Next</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">Next</span>
+            </li>
+        {% endif %}
+    </ul>
+</nav>
+
 <script>
 document.getElementById('tile-view').addEventListener('change', function() {
     document.getElementById('tile-view-content').style.display = 'flex';
@@ -165,6 +208,8 @@ function updateFilters() {
         params.set('search', searchQuery);
     }
     params.set('view', viewTypeValue);
+    // Reset to page 1 when filters change
+    params.set('page', '1');
     
     // Navigate to the new URL
     window.location.href = `${window.location.pathname}?${params.toString()}`;

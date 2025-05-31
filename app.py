@@ -78,6 +78,8 @@ def index():
     # Get selected tag IDs from query parameters
     selected_tag_ids = request.args.getlist('tags')
     search_query = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 9  # Number of items per page for tile view
     
     # Base query
     query = Url.query
@@ -101,8 +103,9 @@ def index():
         # Filter URLs that have ALL selected tags
         query = query.filter(Url.tags.any(Tag.id.in_(tag_ids)))
     
-    # Order by creation date
-    urls = query.order_by(Url.created_at.desc()).all()
+    # Order by creation date and paginate
+    pagination = query.order_by(Url.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+    urls = pagination.items
     view_type = request.args.get('view', 'tile')  # Default to tile view
     
     # Get all tags for the filter
@@ -113,7 +116,8 @@ def index():
                          view_type=view_type,
                          all_tags=all_tags,
                          selected_tag_ids=selected_tag_ids,
-                         search_query=search_query)
+                         search_query=search_query,
+                         pagination=pagination)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add_url():
