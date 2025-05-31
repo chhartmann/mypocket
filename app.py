@@ -334,7 +334,7 @@ def import_csv():
                 # Set created_at if provided
                 if created_at_column is not None:
                     try:
-                        created_at = datetime.strptime(row[created_at_column].strip(), '%Y-%m-%d %H:%M:%S')
+                        created_at = datetime.fromtimestamp(int(row[created_at_column].strip()))
                         new_url.created_at = created_at
                     except ValueError:
                         pass
@@ -350,6 +350,8 @@ def import_csv():
                                 db.session.add(tag)
                             new_url.tags.append(tag)
 
+                new_url.summary =""
+                new_url.notes = ""
                 db.session.add(new_url)
                 imported_count += 1
 
