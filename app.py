@@ -301,8 +301,8 @@ def import_csv():
             return redirect(request.url)
 
         # Hardcoded column indices (0-based)
-        url_column = 0  # First column
-        title_column = 1  # Second column
+        title_column = 0  # First column
+        url_column = 1  # Second column
         created_at_column = 2  # Third column
         tags_column = 3  # Fourth column
 
