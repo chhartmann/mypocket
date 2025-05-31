@@ -1,4 +1,4 @@
-./urls.db
+./database/*
 
 # Python
 __pycache__/

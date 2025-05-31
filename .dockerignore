@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 
 # Database
-urls.db
+./database/*
 
 # Static files that will be created by users
 static/images/*
