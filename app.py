@@ -4,10 +4,9 @@ from sqlalchemy import event
 from datetime import datetime
 import os
 import argparse
-
-# Create argument parser
-parser = argparse.ArgumentParser(description='Flask Web Application')
-parser.add_argument('--port', type=int, default=5000, help='Port number to run the server on')
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 
@@ -38,6 +37,7 @@ class Tag(db.Model):
 class Url(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     url = db.Column(db.String(500), nullable=False)
+    title = db.Column(db.String(500))
     image = db.Column(db.String(100))  # stores image filename
     summary = db.Column(db.Text)
     notes = db.Column(db.Text)
@@ -54,6 +54,22 @@ with app.app_context():
     
     db.create_all()
 
+def fetch_webpage_title(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        title = soup.title.string if soup.title else None
+        return title.strip() if title else url
+    except Exception as e:
+        print(f"Error fetching title for {url}: {str(e)}")
+        return url
+
+# Create argument parser
+parser = argparse.ArgumentParser(description='Flask Web Application')
+parser.add_argument('--port', type=int, default=5000, help='Port number to run the server on')
+
 @app.route('/')
 def index():
     # Get selected tag IDs from query parameters
@@ -69,6 +85,7 @@ def index():
         query = query.filter(
             db.or_(
                 Url.url.ilike(search_term),
+                Url.title.ilike(search_term),
                 Url.notes.ilike(search_term),
                 Url.summary.ilike(search_term)
             )
@@ -113,8 +130,12 @@ def add_url():
                 image_filename = secure_filename(image.filename)
                 image.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
 
+        # Fetch webpage title
+        title = fetch_webpage_title(url)
+        
         new_url = Url(
             url=url,
+            title=title,
             image=image_filename,
             summary=summary,
             notes=notes
@@ -154,7 +175,11 @@ def delete_url(id):
 def edit_url(id):
     url = Url.query.get_or_404(id)
     if request.method == 'POST':
-        url.url = request.form.get('url')
+        new_url = request.form.get('url')
+        # Update title when URL changes
+        if new_url != url.url:
+            url.title = fetch_webpage_title(new_url)
+        url.url = new_url
         url.summary = request.form.get('summary')
         url.notes = request.form.get('notes')
         tags = request.form.get('tags', '')  # Get tags from the form

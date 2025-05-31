@@ -69,11 +69,12 @@
                         <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
                              alt="Website favicon" 
                              class="favicon me-2">
-                        <a href="{{ url.url }}" target="_blank">{{ url.url|truncate(50) }}</a>
+                        <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
                     </div>
                 </h5>
                 <p class="card-text"><strong>Notes:</strong> {{ url.notes }}</p>
                 <p class="card-text">
+                    <a href="{{ url.url }}" target="_blank" class="text-muted small me-2">{{ url.url|truncate(40) }}</a>
                     {% for tag in url.tags %}
                     <span class="badge bg-secondary me-1">{{ tag.name }}</span>
                     {% endfor %}
@@ -104,11 +105,12 @@
                                 <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
                                      alt="Website favicon" 
                                      class="favicon me-2">
-                                <a href="{{ url.url }}" target="_blank">{{ url.url|truncate(50) }}</a>
+                                <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
                             </div>
                         </h5>
                         <p class="mb-1">{{ url.notes }}</p>
                         <div class="mb-1">
+                            <a href="{{ url.url }}" target="_blank" class="text-muted small me-2">{{ url.url|truncate(40) }}</a>
                             {% for tag in url.tags %}
                             <span class="badge bg-secondary me-1">{{ tag.name }}</span>
                             {% endfor %}
