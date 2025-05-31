@@ -293,22 +293,18 @@ def import_csv():
         stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
         csv_input = csv.reader(stream)
         
-        # Get headers from the first row
+        # Skip the header row
         try:
             headers = next(csv_input)
         except StopIteration:
             flash('CSV file is empty', 'danger')
             return redirect(request.url)
 
-        # If this is the first step (uploading file), show the column mapping form
-        if 'url_column' not in request.form:
-            return render_template('import.html', headers=headers)
-
-        # Get the column mappings from the form
-        url_column = headers.index(request.form['url_column'])
-        title_column = headers.index(request.form['title_column']) if request.form.get('title_column') else None
-        created_at_column = headers.index(request.form['created_at_column']) if request.form.get('created_at_column') else None
-        tags_column = headers.index(request.form['tags_column']) if request.form.get('tags_column') else None
+        # Hardcoded column indices (0-based)
+        url_column = 0  # First column
+        title_column = 1  # Second column
+        created_at_column = 2  # Third column
+        tags_column = 3  # Fourth column
 
         # Process the data
         imported_count = 0
@@ -316,6 +312,10 @@ def import_csv():
             try:
                 # Skip empty rows
                 if not any(row):
+                    continue
+
+                # Ensure the row has enough columns
+                if len(row) < 1:
                     continue
 
                 url = row[url_column].strip()
@@ -326,13 +326,13 @@ def import_csv():
                 new_url = Url(url=url)
                 
                 # Set title if provided, otherwise fetch from webpage
-                if title_column is not None:
-                    new_url.title = row[title_column].strip() or fetch_webpage_title(url)
+                if len(row) > title_column and row[title_column].strip():
+                    new_url.title = row[title_column].strip()
                 else:
                     new_url.title = fetch_webpage_title(url)
 
                 # Set created_at if provided
-                if created_at_column is not None:
+                if len(row) > created_at_column and row[created_at_column].strip():
                     try:
                         created_at = datetime.fromtimestamp(int(row[created_at_column].strip()))
                         new_url.created_at = created_at
@@ -340,7 +340,7 @@ def import_csv():
                         pass
 
                 # Add tags if provided
-                if tags_column is not None and row[tags_column].strip():
+                if len(row) > tags_column and row[tags_column].strip():
                     tag_names = [t.strip() for t in row[tags_column].split(',')]
                     for tag_name in tag_names:
                         if tag_name:
@@ -350,7 +350,7 @@ def import_csv():
                                 db.session.add(tag)
                             new_url.tags.append(tag)
 
-                new_url.summary =""
+                new_url.summary = ""
                 new_url.notes = ""
                 db.session.add(new_url)
                 imported_count += 1
@@ -363,14 +363,10 @@ def import_csv():
         try:
             db.session.commit()
             flash(f'Successfully imported {imported_count} URLs', 'success')
-            return redirect(url_for('import_csv'))
+            return redirect(url_for('import_csv'))  # Redirect to index after successful import
         except Exception as e:
             db.session.rollback()
             flash(f'Error saving to database: {str(e)}', 'danger')
             return redirect(url_for('import_csv'))
 
-    return render_template('import.html', headers=None)
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    app.run(debug=True, port=args.port)
+    return render_template('import.html')
