@@ -2,12 +2,7 @@
 
 {% block content %}
 <style>
-.favicon {
-    width: 1.5em;
-    height: 1.5em;
-    object-fit: contain;
-    vertical-align: middle;
-}
+
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -65,16 +60,17 @@
             {% endif %}
             <div class="card-body">
                 <h5 class="card-title">
-                    <div class="d-flex align-items-center">
-                        <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
-                             alt="Website favicon" 
-                             class="favicon me-2">
-                        <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
-                    </div>
+                    <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
                 </h5>
                 <p class="card-text"><strong>Notes:</strong> {{ url.notes }}</p>
                 <p class="card-text">
-                    <a href="{{ url.url }}" target="_blank" class="text-muted small me-2">{{ url.url|truncate(40) }}</a>
+                    <div class="d-flex align-items-center">
+                        <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
+                             alt="Website favicon"
+                             class="me-2"
+                             style="vertical-align: middle;">
+                        <a href="{{ url.url }}" target="_blank" class="text-muted small">{{ url.url|truncate(40) }}</a>
+                    </div>
                     {% for tag in url.tags %}
                     <span class="badge bg-secondary me-1">{{ tag.name }}</span>
                     {% endfor %}
@@ -101,16 +97,17 @@
                     {% endif %}
                     <div>
                         <h5 class="mb-1">
-                            <div class="d-flex align-items-center">
-                                <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
-                                     alt="Website favicon" 
-                                     class="favicon me-2">
-                                <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
-                            </div>
+                            <a href="{{ url.url }}" target="_blank">{{ url.title or url.url|truncate(50) }}</a>
                         </h5>
                         <p class="mb-1">{{ url.notes }}</p>
                         <div class="mb-1">
-                            <a href="{{ url.url }}" target="_blank" class="text-muted small me-2">{{ url.url|truncate(40) }}</a>
+                            <div class="d-flex align-items-center">
+                                <img src="https://www.google.com/s2/favicons?domain={{ url.url }}" 
+                                     alt="Website favicon"
+                                     class="me-2"
+                                     style="vertical-align: middle;">
+                                <a href="{{ url.url }}" target="_blank" class="text-muted small">{{ url.url|truncate(40) }}</a>
+                            </div>
                             {% for tag in url.tags %}
                             <span class="badge bg-secondary me-1">{{ tag.name }}</span>
                             {% endfor %}
