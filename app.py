@@ -363,7 +363,7 @@ def import_csv():
         try:
             db.session.commit()
             flash(f'Successfully imported {imported_count} URLs', 'success')
-            return redirect(url_for('index'))
+            return redirect(url_for('import_csv'))
         except Exception as e:
             db.session.rollback()
             flash(f'Error saving to database: {str(e)}', 'danger')
