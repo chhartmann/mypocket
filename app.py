@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+import bcrypt
 from sqlalchemy import event
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import argparse
 import requests
@@ -13,17 +16,27 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Configure SQLite database
+# Configure SQLite database and JWT
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SECRET_KEY'] = 'your-secret-key-here'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')  # Change this in production
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'urls.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/images')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-here')  # Change this in production
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 
-# Ensure upload folder exists with proper permissions
-os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o755, exist_ok=True)
-
+# Initialize extensions
 db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+jwt = JWTManager(app)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Ensure upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o755, exist_ok=True)
 
 # URL-Tag association table
 url_tags = db.Table('url_tags',
@@ -31,6 +44,20 @@ url_tags = db.Table('url_tags',
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id')),
     db.UniqueConstraint('url_id', 'tag_id', name='uix_url_tag')
 )
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    api_key = db.Column(db.String(64), unique=True)
+    urls = db.relationship('Url', backref='user', lazy=True)
+
+    def set_password(self, password):
+        salt = bcrypt.gensalt()
+        self.password = bcrypt.hashpw(password.encode('utf-8'), salt)
+    
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password)
 
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,6 +72,7 @@ class Url(db.Model):
     summary = db.Column(db.Text)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 # Create database tables and enable foreign keys
 with app.app_context():
@@ -55,7 +83,16 @@ with app.app_context():
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
     
+    # Create tables
     db.create_all()
+    
+    # Create default user if no users exist
+    if not User.query.first():
+        default_user = User(username='user')
+        default_user.set_password('password')
+        db.session.add(default_user)
+        db.session.commit()
+        print("Created default user with username 'user' and password 'password'")
 
 def fetch_webpage_title(url):
     try:
@@ -74,6 +111,7 @@ parser = argparse.ArgumentParser(description='Flask Web Application')
 parser.add_argument('--port', type=int, default=5000, help='Port number to run the server on')
 
 @app.route('/')
+@login_required
 def index():
     # Get selected tag IDs from query parameters
     selected_tag_ids = request.args.getlist('tags')
@@ -81,8 +119,8 @@ def index():
     page = request.args.get('page', 1, type=int)
     per_page = 9  # Number of items per page for tile view
     
-    # Base query
-    query = Url.query
+    # Base query - only show URLs belonging to the current user
+    query = Url.query.filter_by(user_id=current_user.id)
     
     # Apply search filter if search query exists
     if search_query:
@@ -120,19 +158,20 @@ def index():
                          pagination=pagination)
 
 @app.route('/add', methods=['GET', 'POST'])
+@login_required
 def add_url():
+    # Update the add_url function to include user_id
     if request.method == 'POST':
         url = request.form.get('url')
         summary = request.form.get('summary')
         notes = request.form.get('notes')
-        tags = request.form.get('tags')  # Get tags from the form
+        tags = request.form.get('tags')
         
         # Handle image upload
         image_filename = None
         if 'image' in request.files:
             image = request.files['image']
             if image.filename:
-                # Secure the filename and save the file
                 image_filename = secure_filename(image.filename)
                 image.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
 
@@ -144,7 +183,8 @@ def add_url():
             title=title,
             image=image_filename,
             summary=summary,
-            notes=notes
+            notes=notes,
+            user_id=current_user.id
         )
         db.session.add(new_url)
         db.session.commit()
@@ -166,8 +206,13 @@ def add_url():
     return render_template('add.html')
 
 @app.route('/delete/<int:id>')
+@login_required
 def delete_url(id):
     url = Url.query.get_or_404(id)
+    # Check if the current user owns the URL
+    if url.user_id != current_user.id:
+        flash('You do not have permission to delete this URL', 'danger')
+        return redirect(url_for('index'))
     if url.image:
         # Delete the image file if it exists
         image_path = os.path.join(app.config['UPLOAD_FOLDER'], url.image)
@@ -178,8 +223,13 @@ def delete_url(id):
     return redirect(url_for('index'))
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
 def edit_url(id):
     url = Url.query.get_or_404(id)
+    # Check if the current user owns the URL
+    if url.user_id != current_user.id:
+        flash('You do not have permission to edit this URL', 'danger')
+        return redirect(url_for('index'))
     if request.method == 'POST':
         new_url = request.form.get('url')
         # Update title when URL changes
@@ -224,6 +274,7 @@ def edit_url(id):
     return render_template('edit.html', url=url, tags=all_tags)
 
 @app.route('/tags', methods=['GET', 'POST'])
+@login_required
 def manage_tags():
     if request.method == 'POST':
         tag_name = request.form.get('tag_name').strip()
@@ -237,6 +288,7 @@ def manage_tags():
     return render_template('tags.html', tags=tags)
 
 @app.route('/tags/<int:id>', methods=['PUT', 'DELETE'])
+@login_required
 def update_tag(id):
     tag = Tag.query.get_or_404(id)
     if request.method == 'PUT':
@@ -254,6 +306,7 @@ def update_tag(id):
         return jsonify({'success': True})
 
 @app.route('/url/<int:url_id>/tags', methods=['POST', 'DELETE'])
+@login_required
 def manage_url_tags(url_id):
     try:
         url = Url.query.get_or_404(url_id)
@@ -278,6 +331,7 @@ def manage_url_tags(url_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/import', methods=['GET', 'POST'])
+@login_required
 def import_csv():
     if request.method == 'POST':
         if 'csv_file' not in request.files:
@@ -327,7 +381,7 @@ def import_csv():
                     continue
 
                 # Create new URL entry
-                new_url = Url(url=url)
+                new_url = Url(url=url, user_id=current_user.id)  # Associate with the logged-in user
                 
                 # Set title if provided, otherwise fetch from webpage
                 if len(row) > title_column and row[title_column].strip():
@@ -374,3 +428,172 @@ def import_csv():
             return redirect(url_for('import_csv'))
 
     return render_template('import.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page if next_page else url_for('index'))
+        else:
+            flash('Invalid username or password', 'danger')
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
+# API routes for token authentication
+@app.route('/api/token', methods=['POST'])
+def get_token():
+    username = request.json.get('username')
+    password = request.json.get('password')
+    user = User.query.filter_by(username=username).first()
+    
+    if user and user.check_password(password):
+        access_token = create_access_token(identity=user.id)
+        return jsonify(access_token=access_token)
+    
+    return jsonify({"error": "Invalid credentials"}), 401
+
+# API endpoints
+@app.route('/api/urls', methods=['GET'])
+@jwt_required()
+def api_get_urls():
+    current_user_id = get_jwt_identity()
+    urls = Url.query.filter_by(user_id=current_user_id).order_by(Url.created_at.desc()).all()
+    return jsonify([{
+        'id': url.id,
+        'url': url.url,
+        'title': url.title,
+        'summary': url.summary,
+        'notes': url.notes,
+        'created_at': url.created_at.isoformat(),
+        'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+    } for url in urls])
+
+@app.route('/api/urls', methods=['POST'])
+@jwt_required()
+def api_add_url():
+    current_user_id = get_jwt_identity()
+    data = request.get_json()
+    
+    if not data or 'url' not in data:
+        return jsonify({'error': 'URL is required'}), 400
+    
+    url = data['url']
+    title = fetch_webpage_title(url)
+    
+    new_url = Url(
+        url=url,
+        title=title,
+        summary=data.get('summary', ''),
+        notes=data.get('notes', ''),
+        user_id=current_user_id
+    )
+    
+    # Handle tags if provided
+    if 'tags' in data and isinstance(data['tags'], list):
+        for tag_name in data['tags']:
+            tag = Tag.query.filter_by(name=tag_name).first()
+            if not tag:
+                tag = Tag(name=tag_name)
+                db.session.add(tag)
+            new_url.tags.append(tag)
+    
+    db.session.add(new_url)
+    db.session.commit()
+    
+    return jsonify({
+        'id': new_url.id,
+        'url': new_url.url,
+        'title': new_url.title,
+        'summary': new_url.summary,
+        'notes': new_url.notes,
+        'created_at': new_url.created_at.isoformat(),
+        'tags': [{'id': tag.id, 'name': tag.name} for tag in new_url.tags]
+    }), 201
+
+@app.route('/api/urls/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+def api_url_operations(id):
+    current_user_id = get_jwt_identity()
+    url = Url.query.get_or_404(id)
+    
+    # Check if the URL belongs to the current user
+    if url.user_id != current_user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if request.method == 'GET':
+        return jsonify({
+            'id': url.id,
+            'url': url.url,
+            'title': url.title,
+            'summary': url.summary,
+            'notes': url.notes,
+            'created_at': url.created_at.isoformat(),
+            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+        })
+    
+    elif request.method == 'PUT':
+        data = request.get_json()
+        
+        if 'url' in data:
+            url.url = data['url']
+            # Update title if URL changes
+            url.title = fetch_webpage_title(data['url'])
+        
+        if 'summary' in data:
+            url.summary = data['summary']
+        if 'notes' in data:
+            url.notes = data['notes']
+        
+        # Update tags if provided
+        if 'tags' in data and isinstance(data['tags'], list):
+            url.tags.clear()
+            for tag_name in data['tags']:
+                tag = Tag.query.filter_by(name=tag_name).first()
+                if not tag:
+                    tag = Tag(name=tag_name)
+                    db.session.add(tag)
+                url.tags.append(tag)
+        
+        db.session.commit()
+        return jsonify({
+            'id': url.id,
+            'url': url.url,
+            'title': url.title,
+            'summary': url.summary,
+            'notes': url.notes,
+            'created_at': url.created_at.isoformat(),
+            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+        })
+    
+    elif request.method == 'DELETE':
+        if url.image:
+            image_path = os.path.join(app.config['UPLOAD_FOLDER'], url.image)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+        db.session.delete(url)
+        db.session.commit()
+        return '', 204
+
+@app.route('/api/tags', methods=['GET'])
+@jwt_required()
+def api_get_tags():
+    tags = Tag.query.order_by(Tag.name).all()
+    return jsonify([{
+        'id': tag.id,
+        'name': tag.name
+    } for tag in tags])
