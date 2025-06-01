@@ -160,12 +160,11 @@ def index():
 @app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_url():
-    # Update the add_url function to include user_id
     if request.method == 'POST':
         url = request.form.get('url')
         summary = request.form.get('summary')
         notes = request.form.get('notes')
-        tags = request.form.get('tags')
+        tags = request.form.get('tags', '')
         
         # Handle image upload
         image_filename = None
@@ -191,7 +190,7 @@ def add_url():
 
         # Handle tags
         if tags:
-            tag_names = [tag.strip() for tag in tags.split(',')]
+            tag_names = [tag.strip() for tag in tags.split(',') if tag.strip()]
             for tag_name in tag_names:
                 tag = Tag.query.filter_by(name=tag_name).first()
                 if not tag:
@@ -203,7 +202,9 @@ def add_url():
         db.session.commit()
         return redirect(url_for('index'))
     
-    return render_template('add.html')
+    # Get all tags to display in the form
+    all_tags = Tag.query.order_by(Tag.name).all()
+    return render_template('add.html', tags=all_tags)
 
 @app.route('/delete/<int:id>')
 @login_required

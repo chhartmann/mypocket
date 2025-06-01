@@ -25,9 +25,36 @@
                 <label for="notes" class="form-label">Notes</label>
                 <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
             </div>
+
+            <div class="mb-3">
+                <label class="form-label">Tags</label>
+                <div class="tag-container">
+                    {% for tag in tags %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input tag-checkbox" type="checkbox" 
+                               id="tag{{ tag.id }}" value="{{ tag.name }}"
+                               name="selected_tags">
+                        <label class="form-check-label" for="tag{{ tag.id }}">{{ tag.name }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <input type="hidden" name="tags" id="tags-input">
+            </div>
             
             <button type="submit" class="btn btn-primary">Add URL</button>
         </form>
+
+        <script>
+            document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateTagsInput);
+            });
+
+            function updateTagsInput() {
+                const checkedTags = Array.from(document.querySelectorAll('.tag-checkbox:checked'))
+                    .map(checkbox => checkbox.value);
+                document.getElementById('tags-input').value = checkedTags.join(',');
+            }
+        </script>
     </div>
 </div>
 {% endblock %}
