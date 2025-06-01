@@ -10,7 +10,6 @@ MyPocket is a self-hosted bookmark manager built with Flask. It allows you to sa
 - Image attachment support
 - User authentication and API access
 - CSV import functionality
-- Responsive tile and list views
 - REST API with JWT authentication
 
 ## Requirements
