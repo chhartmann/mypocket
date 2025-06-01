@@ -77,6 +77,22 @@ curl http://localhost:5080/api/urls \
   -H "Authorization: Bearer your_access_token"
 ```
 
+To add a new URL, you can use the database token (available in Settings):
+
+```bash
+curl -X POST http://localhost:5080/api/urls \
+  -H "Content-Type: application/json" \
+  -H "X-API-Token: your_database_token" \
+  -d '{
+    "url": "https://example.com",
+    "summary": "An example website",
+    "notes": "Some notes about this URL",
+    "tags": ["example", "demo"]
+  }'
+```
+
+Note: Only the URL adding endpoint supports both authentication methods. All other API endpoints require JWT authentication.
+
 ## Security Notes
 
 - Change the default user credentials after first login

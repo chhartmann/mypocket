@@ -49,7 +49,6 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
-    api_key = db.Column(db.String(64), unique=True)
     token = db.Column(db.String(64), unique=True)
     urls = db.relationship('Url', backref='user', lazy=True)
 
@@ -528,6 +527,36 @@ def delete_token():
     flash('Token deleted successfully', 'success')
     return redirect(url_for('settings'))
 
+def dual_auth_required():
+    """
+    A decorator that allows both JWT and database token authentication.
+    For JWT, looks for 'Authorization: Bearer <token>' header.
+    For database token, looks for 'X-API-Token: <token>' header.
+    """
+    def decorator(fn):
+        def wrapper(*args, **kwargs):
+            # First try JWT authentication
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                try:
+                    # Verify JWT token and get user ID
+                    current_user_id = get_jwt_identity()
+                    return fn(current_user_id, *args, **kwargs)
+                except:
+                    pass
+            
+            # If JWT fails, try database token authentication
+            api_token = request.headers.get('X-API-Token')
+            if api_token:
+                user = User.query.filter_by(token=api_token).first()
+                if user:
+                    return fn(user.id, *args, **kwargs)
+            
+            return jsonify({"error": "Unauthorized"}), 401
+        wrapper.__name__ = fn.__name__
+        return wrapper
+    return decorator
+
 # API routes for token authentication
 @app.route('/api/token', methods=['POST'])
 def get_token():
@@ -558,9 +587,8 @@ def api_get_urls():
     } for url in urls])
 
 @app.route('/api/urls', methods=['POST'])
-@jwt_required()
-def api_add_url():
-    current_user_id = get_jwt_identity()
+@dual_auth_required()
+def api_add_url(current_user_id):
     data = request.get_json()
     
     if not data or 'url' not in data:
