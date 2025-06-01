@@ -55,6 +55,45 @@
                     </form>
                 </div>
             </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">API Token</h5>
+                </div>
+                <div class="card-body">
+                    {% if current_user.token %}
+                    <div class="mb-3">
+                        <label class="form-label">Your API Token:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="{{ current_user.token }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyToken()">
+                                <i class="material-icons">content_copy</i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Keep this token secure. It grants access to your account via the API.</small>
+                    </div>
+                    <form method="POST" action="{{ url_for('delete_token') }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this token? Any applications using it will stop working.')">
+                            Delete Token
+                        </button>
+                    </form>
+                    {% else %}
+                    <p class="mb-3">No API token generated yet.</p>
+                    <form method="POST" action="{{ url_for('generate_token') }}">
+                        <button type="submit" class="btn btn-primary">Generate Token</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+
+            <script>
+            function copyToken() {
+                const tokenInput = document.querySelector('input[readonly]');
+                tokenInput.select();
+                document.execCommand('copy');
+                alert('Token copied to clipboard!');
+            }
+            </script>
         </div>
     </div>
 </div>

@@ -50,6 +50,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
     api_key = db.Column(db.String(64), unique=True)
+    token = db.Column(db.String(64), unique=True)
     urls = db.relationship('Url', backref='user', lazy=True)
 
     def set_password(self, password):
@@ -507,6 +508,24 @@ def update_password():
     current_user.set_password(new_password)
     db.session.commit()
     flash('Password updated successfully', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/settings/token', methods=['POST'])
+@login_required
+def generate_token():
+    import secrets
+    token = secrets.token_hex(32)
+    current_user.token = token
+    db.session.commit()
+    flash('Token generated successfully', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/settings/token/delete', methods=['POST'])
+@login_required
+def delete_token():
+    current_user.token = None
+    db.session.commit()
+    flash('Token deleted successfully', 'success')
     return redirect(url_for('settings'))
 
 # API routes for token authentication
