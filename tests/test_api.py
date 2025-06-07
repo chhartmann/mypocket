@@ -1,0 +1,100 @@
+import json
+from app import User, db, app
+
+def get_auth_token(client, username='testuser', password='testpass'):
+    """Helper to get an auth token for testing."""
+    response = client.post('/api/token',
+                        json={
+                            'username': username,
+                            'password': password
+                        })
+    assert response.status_code == 200, "Failed to get auth token"
+    return json.loads(response.data)['access_token']
+
+def get_auth_headers(token):
+    """Helper to create auth headers for testing."""
+    return {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-API-Token': token  # Also include token as API token for dual auth
+    }
+
+def test_get_jwt_token(client, test_user):
+    response = client.post('/api/token',
+                         data=json.dumps({
+                             'username': 'testuser',
+                             'password': 'testpass'
+                         }),
+                         content_type='application/json')
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert 'access_token' in json_data
+
+def test_api_get_urls(client, test_user, sample_url):
+    token = get_auth_token(client)
+    response = client.get('/api/urls', headers=get_auth_headers(token))
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert len(json_data) > 0
+    assert json_data[0]['url'] == 'http://example.com'
+
+def test_api_add_url(client, test_user):
+    with app.app_context():
+        token = get_auth_token(client)
+        response = client.post('/api/urls',
+                           headers=get_auth_headers(token),
+                           json={
+                               'url': 'http://api-test.com',
+                               'summary': 'API Test Summary',
+                               'notes': 'API Test Notes',
+                               'tags': ['api-test']
+                           })
+    assert response.status_code == 201
+    json_data = json.loads(response.data)
+    assert json_data['url'] == 'http://api-test.com'
+
+def test_api_get_single_url(client, test_user, sample_url, app_context):
+    # Make sure the sample URL belongs to the test user
+    assert sample_url.user_id == test_user.id
+    token = get_auth_token(client, username=test_user.username, password='testpass')
+    url_id = sample_url.id
+    response = client.get(f'/api/urls/{url_id}',
+                        headers=get_auth_headers(token))
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert json_data['url'] == 'http://example.com'
+
+def test_api_update_url(client, test_user, sample_url, app_context):
+    token = get_auth_token(client, username=test_user.username, password='testpass')
+    url_id = sample_url.id
+    response = client.put(f'/api/urls/{url_id}',
+                        headers=get_auth_headers(token),
+                        json={
+                            'url': 'http://updated-api-test.com',
+                            'summary': 'Updated API Test Summary',
+                            'notes': 'Updated API Test Notes',
+                            'tags': ['updated-api-test']
+                        })
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert json_data['url'] == 'http://updated-api-test.com'
+
+def test_api_delete_url(client, test_user, sample_url):
+    with app.app_context():
+        token = get_auth_token(client, username=test_user.username, password='testpass')
+        url_id = sample_url.id
+        response = client.delete(f'/api/urls/{url_id}',
+                               headers=get_auth_headers(token))
+        assert response.status_code == 200
+        json_data = json.loads(response.data)
+        assert json_data['success'] is True
+
+def test_api_get_tags(client, test_user, sample_tag):
+    token = get_auth_token(client)
+    response = client.get('/api/tags',
+                        headers=get_auth_headers(token))
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert len(json_data) > 0
+    assert json_data[0]['name'] == 'test-tag'

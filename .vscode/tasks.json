@@ -7,6 +7,17 @@
 			"command": "source venv/bin/activate && flask run --port=5080",
 			"group": "build",
 			"isBackground": true
+		},
+		{
+			"label": "Run Tests",
+			"type": "shell",
+			"command": "source venv/bin/activate && python -m pytest",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
 		}
 	]
 }

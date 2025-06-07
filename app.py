@@ -588,11 +588,20 @@ def dual_auth_required():
             auth_header = request.headers.get('Authorization')
             if auth_header and auth_header.startswith('Bearer '):
                 try:
+                    # Extract the token
+                    token = auth_header.split(' ')[1]
+                    from flask_jwt_extended import decode_token
                     # Verify JWT token and get user ID
-                    current_user_id = get_jwt_identity()
+                    decoded = decode_token(token)
+                    current_user_id = decoded['sub']
+                    # Check if user exists
+                    user = User.query.get(current_user_id)
+                    if not user:
+                        raise ValueError("User not found")
                     return fn(current_user_id, *args, **kwargs)
-                except:
-                    pass
+                except Exception as e:
+                    app.logger.error(f"JWT auth failed: {str(e)}")
+                    return jsonify({"error": "Invalid JWT token"}), 401
             
             # If JWT fails, try database token authentication
             api_token = request.headers.get('X-API-Token')
@@ -600,8 +609,9 @@ def dual_auth_required():
                 user = User.query.filter_by(token=api_token).first()
                 if user:
                     return fn(user.id, *args, **kwargs)
+                return jsonify({"error": "Invalid API token"}), 401
             
-            return jsonify({"error": "Unauthorized"}), 401
+            return jsonify({"error": "Missing authentication"}), 401
         wrapper.__name__ = fn.__name__
         return wrapper
     return decorator
@@ -609,142 +619,176 @@ def dual_auth_required():
 # API routes for token authentication
 @app.route('/api/token', methods=['POST'])
 def get_token():
-    username = request.json.get('username')
-    password = request.json.get('password')
-    user = User.query.filter_by(username=username).first()
-    
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=user.id)
-        return jsonify(access_token=access_token)
-    
-    return jsonify({"error": "Invalid credentials"}), 401
+    if not request.is_json:
+        return jsonify({"error": "Missing JSON in request"}), 400
+
+    username = request.json.get('username', None)
+    password = request.json.get('password', None)
+
+    if not username or not password:
+        return jsonify({"error": "Missing username or password"}), 400
+
+    try:
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            # Create access token with user ID
+            access_token = create_access_token(identity=str(user.id))
+            # Also store token in user's database token for dual auth
+            user.token = access_token
+            db.session.commit()
+            return jsonify(access_token=access_token)
+        
+        return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        app.logger.error(f"Token generation error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
 
 # API endpoints
 @app.route('/api/urls', methods=['GET'])
 @jwt_required()
 def api_get_urls():
-    current_user_id = get_jwt_identity()
-    urls = Url.query.filter_by(user_id=current_user_id).order_by(Url.created_at.desc()).all()
-    return jsonify([{
-        'id': url.id,
-        'url': url.url,
-        'title': url.title,
-        'summary': url.summary,
-        'notes': url.notes,
-        'created_at': url.created_at.isoformat(),
-        'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
-    } for url in urls])
+    try:
+        current_user_id = get_jwt_identity()
+        urls = Url.query.filter_by(user_id=current_user_id).order_by(Url.created_at.desc()).all()
+        return jsonify([{
+            'id': url.id,
+            'url': url.url,
+            'title': url.title,
+            'summary': url.summary,
+            'notes': url.notes,
+            'created_at': url.created_at.isoformat(),
+            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+        } for url in urls])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/api/urls', methods=['POST'])
 @dual_auth_required()
 def api_add_url(current_user_id):
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON'}), 400
+
     data = request.get_json()
     
     if not data or 'url' not in data:
         return jsonify({'error': 'URL is required'}), 400
     
-    url = data['url']
-    title = fetch_webpage_title(url)
-    
-    new_url = Url(
-        url=url,
-        title=title,
-        summary=data.get('summary', ''),
-        notes=data.get('notes', ''),
-        user_id=current_user_id
-    )
-    
-    # Handle tags if provided
-    if 'tags' in data and isinstance(data['tags'], list):
-        for tag_name in data['tags']:
-            tag = Tag.query.filter_by(name=tag_name).first()
-            if not tag:
-                tag = Tag(name=tag_name)
-                db.session.add(tag)
-            new_url.tags.append(tag)
-    
-    db.session.add(new_url)
-    db.session.commit()
-    
-    return jsonify({
-        'id': new_url.id,
-        'url': new_url.url,
-        'title': new_url.title,
-        'summary': new_url.summary,
-        'notes': new_url.notes,
-        'created_at': new_url.created_at.isoformat(),
-        'tags': [{'id': tag.id, 'name': tag.name} for tag in new_url.tags]
-    }), 201
-
-@app.route('/api/urls/<int:id>', methods=['GET', 'PUT', 'DELETE'])
-@jwt_required()
-def api_url_operations(id):
-    current_user_id = get_jwt_identity()
-    url = Url.query.get_or_404(id)
-    
-    # Check if the URL belongs to the current user
-    if url.user_id != current_user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    if request.method == 'GET':
-        return jsonify({
-            'id': url.id,
-            'url': url.url,
-            'title': url.title,
-            'summary': url.summary,
-            'notes': url.notes,
-            'created_at': url.created_at.isoformat(),
-            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
-        })
-    
-    elif request.method == 'PUT':
-        data = request.get_json()
+    try:
+        url = data['url']
+        title = fetch_webpage_title(url)
         
-        if 'url' in data:
-            url.url = data['url']
-            # Update title if URL changes
-            url.title = fetch_webpage_title(data['url'])
+        new_url = Url(
+            url=url,
+            title=title,
+            summary=data.get('summary', ''),
+            notes=data.get('notes', ''),
+            user_id=current_user_id
+        )
         
-        if 'summary' in data:
-            url.summary = data['summary']
-        if 'notes' in data:
-            url.notes = data['notes']
-        
-        # Update tags if provided
+        # Handle tags if provided
         if 'tags' in data and isinstance(data['tags'], list):
-            url.tags.clear()
             for tag_name in data['tags']:
                 tag = Tag.query.filter_by(name=tag_name).first()
                 if not tag:
                     tag = Tag(name=tag_name)
                     db.session.add(tag)
-                url.tags.append(tag)
+                new_url.tags.append(tag)
         
+        db.session.add(new_url)
         db.session.commit()
+        
         return jsonify({
-            'id': url.id,
-            'url': url.url,
-            'title': url.title,
-            'summary': url.summary,
-            'notes': url.notes,
-            'created_at': url.created_at.isoformat(),
-            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
-        })
-    
-    elif request.method == 'DELETE':
-        if url.image:
-            image_path = os.path.join(app.config['UPLOAD_FOLDER'], url.image)
-            if os.path.exists(image_path):
-                os.remove(image_path)
-        db.session.delete(url)
-        db.session.commit()
-        return '', 204
+            'id': new_url.id,
+            'url': new_url.url,
+            'title': new_url.title,
+            'summary': new_url.summary,
+            'notes': new_url.notes,
+            'created_at': new_url.created_at.isoformat(),
+            'tags': [{'id': tag.id, 'name': tag.name} for tag in new_url.tags]
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/urls/<int:id>', methods=['GET', 'PUT', 'DELETE'])
+@jwt_required()
+def api_url_operations(id):
+    try:
+        current_user_id = get_jwt_identity()
+        url = Url.query.get_or_404(id)
+        # Ensure current_user_id is int for comparison
+        if url.user_id != int(current_user_id):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        if request.method == 'GET':
+            return jsonify({
+                'id': url.id,
+                'url': url.url,
+                'title': url.title,
+                'summary': url.summary,
+                'notes': url.notes,
+                'created_at': url.created_at.isoformat(),
+                'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+            })
+        
+        elif request.method == 'PUT':
+            if not request.is_json:
+                return jsonify({'error': 'Request must be JSON'}), 400
+
+            data = request.get_json()
+            
+            if 'url' in data:
+                url.url = data['url']
+                # Update title if URL changes
+                url.title = fetch_webpage_title(data['url'])
+            
+            if 'summary' in data:
+                url.summary = data['summary']
+            if 'notes' in data:
+                url.notes = data['notes']
+            
+            # Update tags if provided
+            if 'tags' in data and isinstance(data['tags'], list):
+                url.tags.clear()
+                for tag_name in data['tags']:
+                    tag = Tag.query.filter_by(name=tag_name).first()
+                    if not tag:
+                        tag = Tag(name=tag_name)
+                        db.session.add(tag)
+                    url.tags.append(tag)
+            
+            db.session.commit()
+            return jsonify({
+                'id': url.id,
+                'url': url.url,
+                'title': url.title,
+                'summary': url.summary,
+                'notes': url.notes,
+                'created_at': url.created_at.isoformat(),
+                'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+            })
+        
+        elif request.method == 'DELETE':
+            if url.image:
+                image_path = os.path.join(app.config['UPLOAD_FOLDER'], url.image)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+            db.session.delete(url)
+            db.session.commit()
+            return jsonify({'success': True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/api/tags', methods=['GET'])
 @jwt_required()
 def api_get_tags():
-    tags = Tag.query.order_by(Tag.name).all()
-    return jsonify([{
-        'id': tag.id,
-        'name': tag.name
-    } for tag in tags])
+    try:
+        tags = Tag.query.order_by(Tag.name).all()
+        return jsonify([{
+            'id': tag.id,
+            'name': tag.name
+        } for tag in tags])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
