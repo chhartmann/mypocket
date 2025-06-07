@@ -33,7 +33,9 @@ csp = {
         "'self'",
         'https://cdn.jsdelivr.net',
         'https://fonts.googleapis.com',
-        "'unsafe-inline'"  # Required for inline scripts
+        'https://fonts.gstatic.com',
+        "'unsafe-inline'",  # Required for inline scripts
+        "'unsafe-eval'"  # Required for some Bootstrap functionality
     ],
     'style-src': [
         "'self'",
@@ -46,23 +48,20 @@ csp = {
         'https://fonts.gstatic.com',
         'https://cdn.jsdelivr.net'
     ],
-    'connect-src': "'self'",
+    'connect-src': [
+        "'self'",
+        'https://cdn.jsdelivr.net',
+        'https://fonts.googleapis.com',
+        'https://fonts.gstatic.com'
+    ]
 }
 
-# Initialize Talisman with secure defaults
-Talisman(
+# Initialize Talisman with CSP
+talisman = Talisman(
     app,
     content_security_policy=csp,
     content_security_policy_nonce_in=['script-src'],
-    force_https=False,  # Set to True in production
-    session_cookie_secure=False,  # Set to True in production
-    session_cookie_http_only=True,
-    frame_options='DENY',
-    frame_options_allow_from=None,
-    strict_transport_security=True,
-    strict_transport_security_preload=True,
-    strict_transport_security_max_age=31536000,
-    referrer_policy='strict-origin-when-cross-origin'
+    force_https=False  # Set to True in production
 )
 
 # Configure SQLite database and JWT

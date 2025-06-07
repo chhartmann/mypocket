@@ -54,7 +54,7 @@
             <button type="submit" class="btn btn-primary">Save Changes</button>
             <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
 
-            <script>
+            <script nonce="{{ csp_nonce() }}">
             document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', async function(e) {
                     const urlId = this.dataset.urlId;

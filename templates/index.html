@@ -123,7 +123,7 @@
     </ul>
 </nav>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Function to update URL with current filters
 function updateFilters() {
     const searchQuery = document.getElementById('search-input').value.trim();

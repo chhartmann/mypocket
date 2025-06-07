@@ -45,7 +45,7 @@
             <button type="submit" class="btn btn-primary">Add URL</button>
         </form>
 
-        <script>
+        <script nonce="{{ csp_nonce() }}">
             document.querySelectorAll('.tag-checkbox').forEach(checkbox => {
                 checkbox.addEventListener('change', updateTagsInput);
             });

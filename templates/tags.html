@@ -26,61 +26,81 @@
     </div>
 </div>
 
-<script>
-document.querySelectorAll('.edit-tag').forEach(button => {
-    button.addEventListener('click', function() {
-        const item = this.closest('.list-group-item');
-        const tagId = item.dataset.tagId;
-        const nameSpan = item.querySelector('.tag-name');
-        const currentName = nameSpan.textContent;
-        
-        const newName = prompt('Enter new tag name:', currentName);
-        if (newName && newName !== currentName) {
-            // Get CSRF token from the form
-            const csrfToken = document.querySelector('[name=csrf_token]').value;
+<script nonce="{{ csp_nonce() }}">
+// Wait for the DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Edit tag functionality
+    const editButtons = document.querySelectorAll('.edit-tag');
+    
+    editButtons.forEach(button => {
+        button.addEventListener('click', async function() {
+            const item = this.closest('.list-group-item');
+            const tagId = item.dataset.tagId;
+            const nameSpan = item.querySelector('.tag-name');
+            const currentName = nameSpan.textContent;
             
-            fetch(`/tags/${tagId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                body: JSON.stringify({ name: newName })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    nameSpan.textContent = newName;
-                } else {
-                    alert(data.message || 'Failed to update tag');
+            const newName = prompt('Enter new tag name:', currentName);
+            if (newName && newName !== currentName) {
+                try {
+                    // Get CSRF token from the form
+                    const csrfToken = document.querySelector('[name=csrf_token]').value;
+                    
+                    const response = await fetch(`/tags/${tagId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ name: newName })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        nameSpan.textContent = newName;
+                    } else {
+                        alert(data.message || 'Failed to update tag');
+                    }
+                } catch (error) {
+                    alert('Failed to update tag: ' + error.message);
                 }
-            });
-        }
+            }
+        });
     });
-});
 
-document.querySelectorAll('.delete-tag').forEach(button => {
-    button.addEventListener('click', function() {
-        const item = this.closest('.list-group-item');
-        const tagId = item.dataset.tagId;
-        
-        if (confirm('Are you sure you want to delete this tag?')) {
-            // Get CSRF token from the form
-            const csrfToken = document.querySelector('[name=csrf_token]').value;
+    // Delete tag functionality
+    const deleteButtons = document.querySelectorAll('.delete-tag');
+    
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', async function() {
+            const item = this.closest('.list-group-item');
+            const tagId = item.dataset.tagId;
             
-            fetch(`/tags/${tagId}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken
+            if (confirm('Are you sure you want to delete this tag?')) {
+                try {
+                    // Get CSRF token from the form
+                    const csrfToken = document.querySelector('[name=csrf_token]').value;
+                    
+                    const response = await fetch(`/tags/${tagId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        item.remove();
+                    } else {
+                        alert(data.message || 'Failed to delete tag');
+                    }
+                } catch (error) {
+                    alert('Failed to delete tag: ' + error.message);
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    item.remove();
-                }
-            });
-        }
+            }
+        });
     });
 });
 </script>
