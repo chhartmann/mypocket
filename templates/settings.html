@@ -20,6 +20,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('update_username') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="new_username" class="form-label">New Username</label>
                             <input type="text" class="form-control" id="new_username" name="new_username" required>
@@ -39,6 +40,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('update_password') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="current_password_2" class="form-label">Current Password</label>
                             <input type="password" class="form-control" id="current_password_2" name="current_password" required>
@@ -73,6 +75,7 @@
                         <small class="text-muted">Keep this token secure. It grants access to add URLs via the API.</small>
                     </div>
                     <form method="POST" action="{{ url_for('delete_token') }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete this token? Any applications using it will stop working.')">
                             Delete Token
                         </button>
@@ -80,6 +83,7 @@
                     {% else %}
                     <p class="mb-3">No API token generated yet.</p>
                     <form method="POST" action="{{ url_for('generate_token') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-primary">Generate Token</button>
                     </form>
                     {% endif %}

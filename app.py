@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
 from flask_talisman import Talisman
+from flask_wtf.csrf import CSRFProtect
 import bcrypt
 from sqlalchemy import event
 from datetime import datetime, timedelta
@@ -16,6 +17,13 @@ import io
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
+# Generate a secure random secret key for CSRF
+app.config['SECRET_KEY'] = os.urandom(32)
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # CSRF token validity in seconds
+app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Disable CSRF by default for GET requests
 
 # Configure security headers with Talisman
 csp = {

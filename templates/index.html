@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1>MyPocket</h1>
 </div>
@@ -141,6 +142,7 @@ function updateFilters() {
     }
     // Reset to page 1 when filters change
     params.set('page', '1');
+    params.set('csrf_token', document.querySelector('[name=csrf_token]').value);
     
     // Navigate to the new URL
     window.location.href = `${window.location.pathname}?${params.toString()}`;
