@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+from flask_talisman import Talisman
 import bcrypt
 from sqlalchemy import event
 from datetime import datetime, timedelta
@@ -15,6 +16,46 @@ import io
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+# Configure security headers with Talisman
+csp = {
+    'default-src': "'self'",
+    'img-src': ['*', 'data:', 'https:'],  # Allow images from all sources
+    'script-src': [
+        "'self'",
+        'https://cdn.jsdelivr.net',
+        'https://fonts.googleapis.com',
+        "'unsafe-inline'"  # Required for inline scripts
+    ],
+    'style-src': [
+        "'self'",
+        'https://cdn.jsdelivr.net',
+        'https://fonts.googleapis.com',
+        "'unsafe-inline'"  # Required for inline styles
+    ],
+    'font-src': [
+        "'self'",
+        'https://fonts.gstatic.com',
+        'https://cdn.jsdelivr.net'
+    ],
+    'connect-src': "'self'",
+}
+
+# Initialize Talisman with secure defaults
+Talisman(
+    app,
+    content_security_policy=csp,
+    content_security_policy_nonce_in=['script-src'],
+    force_https=False,  # Set to True in production
+    session_cookie_secure=False,  # Set to True in production
+    session_cookie_http_only=True,
+    frame_options='DENY',
+    frame_options_allow_from=None,
+    strict_transport_security=True,
+    strict_transport_security_preload=True,
+    strict_transport_security_max_age=31536000,
+    referrer_policy='strict-origin-when-cross-origin'
+)
 
 # Configure SQLite database and JWT
 basedir = os.path.abspath(os.path.dirname(__file__))
