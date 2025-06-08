@@ -28,18 +28,17 @@ def get_api_token_headers(token):
         'X-API-Token': token
     }
 
-def test_get_jwt_token(client, test_user):
+def test_get_jwt_token(client, test_user, app_context):
     response = client.post('/api/token',
-                         data=json.dumps({
+                         json={
                              'username': 'testuser',
                              'password': 'testpass'
-                         }),
-                         content_type='application/json')
+                         })
     assert response.status_code == 200
     json_data = json.loads(response.data)
     assert 'access_token' in json_data
 
-def test_api_get_urls(client, test_user, sample_url):
+def test_api_get_urls(client, test_user, sample_url, app_context):
     token = get_auth_token(client)
     response = client.get('/api/urls', headers=get_auth_headers(token))
     assert response.status_code == 200
@@ -47,17 +46,16 @@ def test_api_get_urls(client, test_user, sample_url):
     assert len(json_data) > 0
     assert json_data[0]['url'] == 'http://example.com'
 
-def test_api_add_url(client, test_user):
-    with app.app_context():
-        token = get_auth_token(client)
-        response = client.post('/api/urls',
-                           headers=get_auth_headers(token),
-                           json={
-                               'url': 'http://api-test.com',
-                               'summary': 'API Test Summary',
-                               'notes': 'API Test Notes',
-                               'tags': ['api-test']
-                           })
+def test_api_add_url(client, test_user, app_context):
+    token = get_auth_token(client)
+    response = client.post('/api/urls',
+                       headers=get_auth_headers(token),
+                       json={
+                           'url': 'http://api-test.com',
+                           'summary': 'API Test Summary',
+                           'notes': 'API Test Notes',
+                           'tags': ['api-test']
+                       })
     assert response.status_code == 201
     json_data = json.loads(response.data)
     assert json_data['url'] == 'http://api-test.com'
@@ -65,7 +63,7 @@ def test_api_add_url(client, test_user):
 def test_api_get_single_url(client, test_user, sample_url, app_context):
     # Make sure the sample URL belongs to the test user
     assert sample_url.user_id == test_user.id
-    token = get_auth_token(client, username=test_user.username, password='testpass')
+    token = get_auth_token(client)
     url_id = sample_url.id
     response = client.get(f'/api/urls/{url_id}',
                         headers=get_auth_headers(token))
@@ -74,7 +72,7 @@ def test_api_get_single_url(client, test_user, sample_url, app_context):
     assert json_data['url'] == 'http://example.com'
 
 def test_api_update_url(client, test_user, sample_url, app_context):
-    token = get_auth_token(client, username=test_user.username, password='testpass')
+    token = get_auth_token(client)
     url_id = sample_url.id
     response = client.put(f'/api/urls/{url_id}',
                         headers=get_auth_headers(token),
@@ -88,17 +86,16 @@ def test_api_update_url(client, test_user, sample_url, app_context):
     json_data = json.loads(response.data)
     assert json_data['url'] == 'http://updated-api-test.com'
 
-def test_api_delete_url(client, test_user, sample_url):
-    with app.app_context():
-        token = get_auth_token(client, username=test_user.username, password='testpass')
-        url_id = sample_url.id
-        response = client.delete(f'/api/urls/{url_id}',
-                               headers=get_auth_headers(token))
-        assert response.status_code == 200
-        json_data = json.loads(response.data)
-        assert json_data['success'] is True
+def test_api_delete_url(client, test_user, sample_url, app_context):
+    token = get_auth_token(client)
+    url_id = sample_url.id
+    response = client.delete(f'/api/urls/{url_id}',
+                           headers=get_auth_headers(token))
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert json_data['success'] is True
 
-def test_api_get_tags(client, test_user, sample_tag):
+def test_api_get_tags(client, test_user, sample_tag, app_context):
     token = get_auth_token(client)
     response = client.get('/api/tags',
                         headers=get_auth_headers(token))
@@ -107,23 +104,22 @@ def test_api_get_tags(client, test_user, sample_tag):
     assert len(json_data) > 0
     assert json_data[0]['name'] == 'test-tag'
 
-def test_api_add_url_with_api_token(client, test_user):
-    with app.app_context():
-        # Get the user's API token
-        api_token = test_user.token
-        assert api_token is not None, "User should have an API token"
-        
-        # Create headers with only API token
-        headers = get_api_token_headers(api_token)
-        
-        response = client.post('/api/urls',
-                           headers=headers,
-                           json={
-                               'url': 'http://api-token-test.com',
-                               'summary': 'API Token Test Summary',
-                               'notes': 'API Token Test Notes',
-                               'tags': ['api-token-test']
-                           })
+def test_api_add_url_with_api_token(client, test_user, app_context):
+    # Get the user's API token
+    api_token = test_user.token
+    assert api_token is not None, "User should have an API token"
+    
+    # Create headers with only API token
+    headers = get_api_token_headers(api_token)
+    
+    response = client.post('/api/urls',
+                       headers=headers,
+                       json={
+                           'url': 'http://api-token-test.com',
+                           'summary': 'API Token Test Summary',
+                           'notes': 'API Token Test Notes',
+                           'tags': ['api-token-test']
+                       })
     assert response.status_code == 201
     json_data = json.loads(response.data)
     assert json_data['url'] == 'http://api-token-test.com'

@@ -12,7 +12,9 @@ def create_app():
         'WTF_CSRF_ENABLED': False,
         'JWT_SECRET_KEY': 'test-secret-key',
         'JWT_TOKEN_LOCATION': ['headers'],
-        'JWT_ACCESS_TOKEN_EXPIRES': False  # Tokens don't expire in testing
+        'JWT_ACCESS_TOKEN_EXPIRES': False,  # Tokens don't expire in testing
+        'RATELIMIT_ENABLED': False,  # Disable rate limiting during tests
+        'RATELIMIT_STORAGE_URL': 'memory://'  # Use in-memory storage for rate limiting
     })
     return app
 
@@ -46,40 +48,34 @@ def test_user(app_context):
     user.token = 'test-api-token-123'
     db.session.add(user)
     db.session.commit()
-    user = db.session.get(User, user.id)  # Get fresh copy after commit
-    return user
+    return db.session.get(User, user.id)  # Get fresh copy after commit
 
 @pytest.fixture(scope='function')
 def auth_client(client, test_user):
-    client.post('/login', data={
-        'username': 'testuser',
-        'password': 'testpass'
-    }, follow_redirects=True)
+    """Create an authenticated client."""
+    with client.session_transaction() as session:
+        session['_user_id'] = str(test_user.id)
+        session['_fresh'] = True
     return client
 
 @pytest.fixture(scope='function')
-def sample_url(auth_client, test_user):
-    # Get the app from the client
-    app = auth_client.application
-    with app.app_context():
-        url = Url(
-            url='http://example.com',
-            title='Example Website',
-            summary='Test summary',
-            notes='Test notes',
-            user_id=test_user.id
-        )
-        db.session.add(url)
-        db.session.commit()
-        url_id = url.id  # Store ID before closing session
-        db.session.close()  # Close session to avoid state leak
-        # Get fresh copy in new session
-        return Url.query.get(url_id)
+def sample_url(app_context, test_user):
+    """Create a sample URL for testing."""
+    url = Url(
+        url='http://example.com',
+        title='Example Website',
+        summary='Test summary',
+        notes='Test notes',
+        user_id=test_user.id
+    )
+    db.session.add(url)
+    db.session.commit()
+    return db.session.get(Url, url.id)  # Get fresh copy after commit
 
 @pytest.fixture(scope='function')
-def sample_tag(app):
-    with app.app_context():
-        tag = Tag(name='test-tag')
-        db.session.add(tag)
-        db.session.commit()
-        return db.session.get(Tag, tag.id)
+def sample_tag(app_context):
+    """Create a sample tag for testing."""
+    tag = Tag(name='test-tag')
+    db.session.add(tag)
+    db.session.commit()
+    return db.session.get(Tag, tag.id)  # Get fresh copy after commit
