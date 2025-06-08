@@ -4,6 +4,8 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
 from flask_talisman import Talisman
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import bcrypt
 from sqlalchemy import event
 from datetime import datetime, timedelta
@@ -17,6 +19,14 @@ import io
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -485,6 +495,7 @@ def import_csv():
     return render_template('import.html')
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")  # Limit to 5 attempts per minute
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
