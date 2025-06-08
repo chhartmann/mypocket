@@ -2,6 +2,17 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Setup Virtual Environment",
+			"type": "shell",
+			"command": "python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "Run Flask App",
 			"type": "shell",
 			"command": "source venv/bin/activate && flask run --port=5080",
