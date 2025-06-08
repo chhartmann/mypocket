@@ -21,9 +21,15 @@ app = Flask(__name__)
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
 # Generate a secure random secret key for CSRF
-app.config['SECRET_KEY'] = os.urandom(32)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32))
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # CSRF token validity in seconds
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Disable CSRF by default for GET requests
+
+# Add session configuration
+app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookie over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protect against CSRF
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session lifetime
 
 # Configure security headers with Talisman
 csp = {
@@ -489,9 +495,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and user.check_password(password):
-            login_user(user)
+            login_user(user, remember=True)  # Enable remember me functionality
             next_page = request.args.get('next')
-            return redirect(next_page if next_page else url_for('index'))
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('index')
+            return redirect(next_page)
         else:
             flash('Invalid username or password', 'danger')
     
