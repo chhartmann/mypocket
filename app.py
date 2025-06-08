@@ -174,6 +174,29 @@ def fetch_webpage_title(url):
 parser = argparse.ArgumentParser(description='Flask Web Application')
 parser.add_argument('--port', type=int, help='Port number to run the server on')
 
+def sanitize_input(input_str):
+    """
+    Sanitize user input to prevent SQL injection.
+    Returns None if input contains potentially dangerous patterns.
+    """
+    if not input_str:
+        return None
+    
+    # Check for SQL injection patterns
+    dangerous_patterns = [
+        r"(\%27)|(\')|(\-\-)|(\%23)|(#)",  # SQL comment patterns
+        r"((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))",  # SQL injection with = operator
+        r"((\%27)|(\'))union",  # SQL UNION injection
+        r"exec(\s|\+)+(s|x)p\w+",  # SQL stored procedure injection
+    ]
+    
+    import re
+    for pattern in dangerous_patterns:
+        if re.search(pattern, input_str, re.IGNORECASE):
+            return None
+    
+    return input_str
+
 @app.route('/')
 @login_required
 def index():
@@ -182,6 +205,9 @@ def index():
     search_query = request.args.get('search', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = 9  # Number of items per page for tile view
+    
+    # Sanitize search query
+    search_query = sanitize_input(search_query)
     
     # Base query - only show URLs belonging to the current user
     query = Url.query.filter_by(user_id=current_user.id)
@@ -200,10 +226,14 @@ def index():
     
     # Apply tag filter if tags are selected
     if selected_tag_ids:
-        # Convert string IDs to integers
-        tag_ids = [int(tag_id) for tag_id in selected_tag_ids]
-        # Filter URLs that have ALL selected tags
-        query = query.filter(Url.tags.any(Tag.id.in_(tag_ids)))
+        try:
+            # Convert string IDs to integers and validate
+            tag_ids = [int(tag_id) for tag_id in selected_tag_ids if tag_id.isdigit()]
+            # Filter URLs that have ALL selected tags
+            query = query.filter(Url.tags.any(Tag.id.in_(tag_ids)))
+        except ValueError:
+            # If any tag ID is invalid, ignore the tag filter
+            pass
     
     # Order by creation date and paginate
     pagination = query.order_by(Url.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
@@ -693,25 +723,34 @@ def api_add_url(current_user_id):
         return jsonify({'error': 'URL is required'}), 400
     
     try:
-        url = data['url']
+        # Sanitize input
+        url = sanitize_input(data['url'])
+        if not url:
+            return jsonify({'error': 'Invalid URL format'}), 400
+            
+        summary = sanitize_input(data.get('summary', ''))
+        notes = sanitize_input(data.get('notes', ''))
+        
         title = fetch_webpage_title(url)
         
         new_url = Url(
             url=url,
             title=title,
-            summary=data.get('summary', ''),
-            notes=data.get('notes', ''),
+            summary=summary or '',
+            notes=notes or '',
             user_id=current_user_id
         )
         
         # Handle tags if provided
         if 'tags' in data and isinstance(data['tags'], list):
             for tag_name in data['tags']:
-                tag = Tag.query.filter_by(name=tag_name).first()
-                if not tag:
-                    tag = Tag(name=tag_name)
-                    db.session.add(tag)
-                new_url.tags.append(tag)
+                sanitized_tag = sanitize_input(tag_name)
+                if sanitized_tag:
+                    tag = Tag.query.filter_by(name=sanitized_tag).first()
+                    if not tag:
+                        tag = Tag(name=sanitized_tag)
+                        db.session.add(tag)
+                    new_url.tags.append(tag)
         
         db.session.add(new_url)
         db.session.commit()
@@ -757,24 +796,29 @@ def api_url_operations(id):
             data = request.get_json()
             
             if 'url' in data:
-                url.url = data['url']
+                sanitized_url = sanitize_input(data['url'])
+                if not sanitized_url:
+                    return jsonify({'error': 'Invalid URL format'}), 400
+                url.url = sanitized_url
                 # Update title if URL changes
-                url.title = fetch_webpage_title(data['url'])
+                url.title = fetch_webpage_title(sanitized_url)
             
             if 'summary' in data:
-                url.summary = data['summary']
+                url.summary = sanitize_input(data['summary']) or ''
             if 'notes' in data:
-                url.notes = data['notes']
+                url.notes = sanitize_input(data['notes']) or ''
             
             # Update tags if provided
             if 'tags' in data and isinstance(data['tags'], list):
                 url.tags.clear()
                 for tag_name in data['tags']:
-                    tag = Tag.query.filter_by(name=tag_name).first()
-                    if not tag:
-                        tag = Tag(name=tag_name)
-                        db.session.add(tag)
-                    url.tags.append(tag)
+                    sanitized_tag = sanitize_input(tag_name)
+                    if sanitized_tag:
+                        tag = Tag.query.filter_by(name=sanitized_tag).first()
+                        if not tag:
+                            tag = Tag(name=sanitized_tag)
+                            db.session.add(tag)
+                        url.tags.append(tag)
             
             db.session.commit()
             return jsonify({
