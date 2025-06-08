@@ -20,6 +20,14 @@ def get_auth_headers(token):
         'X-API-Token': token  # Also include token as API token for dual auth
     }
 
+def get_api_token_headers(token):
+    """Helper to create API token headers for testing."""
+    return {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-API-Token': token
+    }
+
 def test_get_jwt_token(client, test_user):
     response = client.post('/api/token',
                          data=json.dumps({
@@ -98,3 +106,24 @@ def test_api_get_tags(client, test_user, sample_tag):
     json_data = json.loads(response.data)
     assert len(json_data) > 0
     assert json_data[0]['name'] == 'test-tag'
+
+def test_api_add_url_with_api_token(client, test_user):
+    with app.app_context():
+        # Get the user's API token
+        api_token = test_user.token
+        assert api_token is not None, "User should have an API token"
+        
+        # Create headers with only API token
+        headers = get_api_token_headers(api_token)
+        
+        response = client.post('/api/urls',
+                           headers=headers,
+                           json={
+                               'url': 'http://api-token-test.com',
+                               'summary': 'API Token Test Summary',
+                               'notes': 'API Token Test Notes',
+                               'tags': ['api-token-test']
+                           })
+    assert response.status_code == 201
+    json_data = json.loads(response.data)
+    assert json_data['url'] == 'http://api-token-test.com'

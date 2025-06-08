@@ -42,6 +42,8 @@ def test_user(app_context):
     # Create test user
     user = User(username='testuser')
     user.set_password('testpass')
+    # Generate a test API token
+    user.token = 'test-api-token-123'
     db.session.add(user)
     db.session.commit()
     user = db.session.get(User, user.id)  # Get fresh copy after commit
