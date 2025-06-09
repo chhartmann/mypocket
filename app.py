@@ -30,16 +30,25 @@ limiter = Limiter(
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
-# Generate a secure random secret key for CSRF
+
+# Configure Flask application
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', os.urandom(32))
 app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # CSRF token validity in seconds
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Disable CSRF by default for GET requests
 
 # Add session configuration
-app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookie over HTTPS
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access to session cookie
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protect against CSRF
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # Session lifetime
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
+
+# Configure SQLite database and JWT
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir,  "database", 'urls.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/images')
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-here')  # Change this in production
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 
 # Configure security headers with Talisman
 csp = {
@@ -77,22 +86,16 @@ talisman = Talisman(
     app,
     content_security_policy=csp,
     content_security_policy_nonce_in=['script-src'],
-    force_https=False  # Set to True in production
+    force_https=False,  # Set to True in production
+    session_cookie_secure=False,  # Allow cookies over HTTP in development
+    strict_transport_security=False  # Disable HSTS in development
 )
-
-# Configure SQLite database and JWT
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')  # Change this in production
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir,  "database", 'urls.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'static/images')
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-here')  # Change this in production
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
 
 # Initialize extensions
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.login_message_category = 'info'
 jwt = JWTManager(app)
 
 @login_manager.user_loader
