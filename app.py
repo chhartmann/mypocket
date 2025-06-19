@@ -7,7 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import bcrypt
-from sqlalchemy import event
+from sqlalchemy import event, func
 from datetime import datetime, timedelta
 import os
 import argparse
@@ -303,7 +303,7 @@ def add_url():
     all_tags = Tag.query.order_by(Tag.name).all()
     return render_template('add.html', tags=all_tags)
 
-@app.route('/delete/<int:id>')
+@app.route('/delete/<int:id>', methods=['GET', 'POST'])
 @login_required
 def delete_url(id):
     url = Url.query.get_or_404(id)
@@ -318,7 +318,10 @@ def delete_url(id):
             os.remove(image_path)
     db.session.delete(url)
     db.session.commit()
-    return redirect(url_for('index'))
+    # If coming from duplicates page, redirect to manage-urls with show_duplicates
+    if request.method == 'POST' and request.form.get('from_duplicates'):
+        return redirect(url_for('manage_urls', show_duplicates=1))
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -860,3 +863,28 @@ def api_get_tags():
         } for tag in tags])
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@app.route('/manage-urls', methods=['GET', 'POST'])
+@login_required
+def manage_urls():
+    duplicate_groups = []
+    searched = False
+    # Trigger duplicate search if POST with find_duplicates or GET with show_duplicates
+    trigger_search = (request.method == 'POST' and 'find_duplicates' in request.form) or (request.method == 'GET' and request.args.get('show_duplicates'))
+    if trigger_search:
+        # Find duplicate URLs for the current user
+        duplicates = (
+            db.session.query(Url.url)
+            .filter(Url.user_id == current_user.id)
+            .group_by(func.lower(Url.url))
+            .having(func.count(Url.id) > 1)
+            .all()
+        )
+        duplicate_urls = [row[0] for row in duplicates]
+        # For each duplicate url, get all Url objects for the user with that url
+        for dupe_url in duplicate_urls:
+            group = Url.query.filter_by(user_id=current_user.id, url=dupe_url).order_by(Url.created_at).all()
+            if len(group) > 1:
+                duplicate_groups.append(group)
+        searched = True
+    return render_template('manage_urls.html', duplicate_groups=duplicate_groups, searched=searched)

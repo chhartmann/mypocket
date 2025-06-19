@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Manage URLs</h1>
+
+<form method="POST" action="{{ url_for('manage_urls') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" name="find_duplicates" class="btn btn-warning mb-4">Search for Duplicates</button>
+</form>
+
+{% if duplicate_groups %}
+    <h3>Duplicate URLs Found</h3>
+    <div class="alert alert-info">Below are groups of URLs with the same address. You can delete duplicates, leaving only one entry per group.</div>
+    {% for group in duplicate_groups %}
+        <div class="card mb-3">
+            <div class="card-header bg-secondary text-white">
+                <strong>{{ group[0].url }}</strong> ({{ group|length }} entries)
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for url in group %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ url.title or url.url }}</strong><br>
+                        <small>Added: {{ url.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        {% if url.notes %}<br><span class="text-muted">{{ url.notes }}</span>{% endif %}
+                    </div>
+                    {% if not loop.first %}
+                    <form method="POST" action="{{ url_for('delete_url', id=url.id) }}" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="from_duplicates" value="1">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this duplicate?')">Delete</button>
+                    </form>
+                    {% else %}
+                    <span class="badge bg-success">Keep</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endfor %}
+{% elif searched %}
+    <div class="alert alert-success">No duplicate URLs found!</div>
+{% endif %}
+
+{% endblock %} 

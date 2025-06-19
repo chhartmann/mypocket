@@ -64,3 +64,19 @@ def test_filter_by_tags(auth_client, sample_url, sample_tag, app_context):
     response = auth_client.get(f'/?tags={sample_tag.id}', follow_redirects=True)
     assert response.status_code == 200
     assert b'Example Website' in response.data
+
+def test_manage_urls_duplicates(auth_client, app_context, test_user):
+    # Add two URLs with the same address for the test user
+    url1 = Url(url='http://dupe.com', title='Dupe 1', user_id=test_user.id)
+    url2 = Url(url='http://dupe.com', title='Dupe 2', user_id=test_user.id)
+    db.session.add_all([url1, url2])
+    db.session.commit()
+
+    response = auth_client.get('/manage-urls?show_duplicates=1', follow_redirects=True)
+    assert response.status_code == 200
+    # Both titles should appear in the response
+    assert b'Dupe 1' in response.data
+    assert b'Dupe 2' in response.data
+    # The duplicate group header should appear
+    assert b'Duplicate URLs Found' in response.data
+    assert b'http://dupe.com' in response.data
