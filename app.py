@@ -388,8 +388,15 @@ def manage_tags():
                 new_tag = Tag(name=tag_name)
                 db.session.add(new_tag)
                 db.session.commit()
-    tags = Tag.query.order_by(Tag.name).all()
-    return render_template('tags.html', tags=tags)
+    # Query tags and annotate with usage count
+    tags_with_count = db.session.query(
+        Tag,
+        db.func.count(url_tags.c.url_id).label('usage_count')
+    ).outerjoin(url_tags, Tag.id == url_tags.c.tag_id)\
+     .group_by(Tag.id)\
+     .order_by(Tag.name).all()
+    # tags_with_count is a list of (Tag, usage_count) tuples
+    return render_template('tags.html', tags=tags_with_count)
 
 @app.route('/tags/<int:id>', methods=['PUT', 'DELETE'])
 @login_required
