@@ -8,7 +8,10 @@ Flask-Limiter==3.5.0
 bcrypt==4.3.0
 Pillow==10.1.0
 Werkzeug==3.0.1
-requests==2.32.3
-beautifulsoup4==4.13.4
+requests==2.31.0
+beautifulsoup4==4.12.2
 SQLAlchemy==2.0.23
 pytest==7.4.0
+PyPDF2==3.0.1
+langchain==0.3.25
+huggingface-hub==0.21.4
