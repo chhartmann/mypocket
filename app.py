@@ -701,24 +701,6 @@ def get_token():
         app.logger.error(f"Token generation error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
-# API endpoints
-@app.route('/api/urls', methods=['GET'])
-@jwt_required()
-def api_get_urls():
-    try:
-        current_user_id = get_jwt_identity()
-        urls = Url.query.filter_by(user_id=current_user_id).order_by(Url.created_at.desc()).all()
-        return jsonify([{
-            'id': url.id,
-            'url': url.url,
-            'title': url.title,
-            'summary': url.summary,
-            'notes': url.notes,
-            'created_at': url.created_at.isoformat(),
-            'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
-        } for url in urls])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
 
 @app.route('/api/urls', methods=['POST'])
 @dual_auth_required()
@@ -888,3 +870,50 @@ def manage_urls():
                 duplicate_groups.append(group)
         searched = True
     return render_template('manage_urls.html', duplicate_groups=duplicate_groups, searched=searched)
+
+@app.route('/api/check_urls_batch', methods=['POST'])
+@login_required
+def api_check_urls_batch():
+    try:
+        data = request.get_json()
+        ids = data.get('ids', [])
+        if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+            return jsonify({'error': 'Invalid ids'}), 400
+        urls = Url.query.filter(Url.id.in_(ids), Url.user_id == current_user.id).all()
+        url_map = {u.id: u for u in urls}
+        import requests
+        results = []
+        for id_ in ids:
+            url_obj = url_map.get(id_)
+            if not url_obj:
+                results.append({'id': id_, 'reachable': False})
+                continue
+            try:
+                resp = requests.get(url_obj.url, timeout=7, headers={'User-Agent': 'Mozilla/5.0'})
+                reachable = resp.status_code < 400
+            except Exception:
+                reachable = False
+            results.append({'id': id_, 'reachable': reachable})
+        return jsonify({'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/api/session_urls', methods=['GET'])
+@login_required
+def api_get_session_urls():
+    try:
+        urls = Url.query.filter_by(user_id=current_user.id).order_by(Url.created_at.desc()).all()
+        return jsonify([
+            {
+                'id': url.id,
+                'url': url.url,
+                'title': url.title,
+                'summary': url.summary,
+                'notes': url.notes,
+                'created_at': url.created_at.isoformat(),
+                'tags': [{'id': tag.id, 'name': tag.name} for tag in url.tags]
+            }
+            for url in urls
+        ])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400

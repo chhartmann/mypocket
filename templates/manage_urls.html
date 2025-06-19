@@ -8,6 +8,20 @@
     <button type="submit" name="find_duplicates" class="btn btn-warning mb-4">Search for Duplicates</button>
 </form>
 
+<!-- Unreachable URLs Section -->
+<div id="unreachable-section" class="mb-4">
+    <button id="check-unreachable-btn" class="btn btn-danger mb-3">Check for Unreachable URLs</button>
+    <div id="unreachable-progress" class="progress mb-2" style="height: 25px; display: none;">
+        <div id="unreachable-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+    </div>
+    <div id="unreachable-results" style="display: none;">
+        <h3>Unreachable URLs</h3>
+        <ul id="unreachable-list" class="list-group"></ul>
+        <div id="unreachable-none" class="alert alert-success mt-2" style="display:none;">No unreachable URLs found!</div>
+    </div>
+    <div id="unreachable-error" class="alert alert-danger mt-2" style="display:none;"></div>
+</div>
+
 {% if duplicate_groups %}
     <h3>Duplicate URLs Found</h3>
     <div class="alert alert-info">Below are groups of URLs with the same address. You can delete duplicates, leaving only one entry per group.</div>
@@ -20,7 +34,7 @@
                 {% for url in group %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>{{ url.title or url.url }}</strong><br>
+                        <strong><a href="{{ url.url }}" target="_blank">{{ url.title or url.url }}</a></strong><br>
                         <small>Added: {{ url.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                         {% if url.notes %}<br><span class="text-muted">{{ url.notes }}</span>{% endif %}
                     </div>
@@ -42,4 +56,134 @@
     <div class="alert alert-success">No duplicate URLs found!</div>
 {% endif %}
 
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce() }}">
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+document.getElementById('check-unreachable-btn').addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    document.getElementById('unreachable-progress').style.display = '';
+    document.getElementById('unreachable-results').style.display = '';
+    document.getElementById('unreachable-list').innerHTML = '';
+    document.getElementById('unreachable-none').style.display = 'none';
+    document.getElementById('unreachable-error').style.display = 'none';
+    const progressBar = document.getElementById('unreachable-progress-bar');
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0%';
+
+    // Fetch all URLs
+    let urls = [];
+    try {
+        const resp = await fetch('/api/session_urls', {
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        if (!resp.ok) throw new Error('Failed to fetch URLs.');
+        urls = await resp.json();
+    } catch (e) {
+        document.getElementById('unreachable-error').textContent = e.message;
+        document.getElementById('unreachable-error').style.display = '';
+        btn.disabled = false;
+        return;
+    }
+    if (!urls.length) {
+        document.getElementById('unreachable-none').textContent = 'No URLs found!';
+        document.getElementById('unreachable-none').style.display = '';
+        btn.disabled = false;
+        return;
+    }
+
+    let unreachable = [];
+    const batchSize = 20;
+    for (let i = 0; i < urls.length; i += batchSize) {
+        const batch = urls.slice(i, i + batchSize);
+        const ids = batch.map(url => url.id);
+        let results = [];
+        try {
+            const resp = await fetch('/api/check_urls_batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ ids }),
+                credentials: 'same-origin',
+            });
+            if (!resp.ok) throw new Error('Batch check failed');
+            const data = await resp.json();
+            results = data.results || [];
+        } catch (e) {
+            console.log("batch check failed " + e)
+        }
+        // Add unreachable URLs from this batch
+        results.forEach(res => {
+            if (!res.reachable) {
+                const url = batch.find(u => u.id === res.id);
+                if (url) unreachable.push(url);
+            }
+        });
+        // Update progress
+        let percent = Math.round((Math.min(i + batchSize, urls.length) / urls.length) * 100);
+        progressBar.style.width = percent + '%';
+        progressBar.textContent = percent + '%';
+    }
+
+    // Show results
+    const list = document.getElementById('unreachable-list');
+    list.innerHTML = '';
+    if (unreachable.length) {
+        unreachable.forEach(url => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <div>
+                    <strong><a href="${url.url}" target="_blank">${url.title ? url.title : url.url}</a></strong><br>
+                    <small>${url.url}</small>
+                    ${url.notes ? `<br><span class='text-muted'>${url.notes}</span>` : ''}
+                </div>
+                <form method="POST" action="/delete/${url.id}" style="display:inline;" class="unreachable-delete-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            `;
+            list.appendChild(li);
+        });
+        // Add AJAX delete handler for unreachable URLs
+        list.querySelectorAll('.unreachable-delete-form').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const li = this.closest('li');
+                const formData = new FormData(this);
+                try {
+                    const resp = await fetch(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin',
+                        headers: { 'X-CSRFToken': csrfToken }
+                    });
+                    if (resp.redirected || resp.ok) {
+                        li.remove();
+                        // If list is empty, show the 'no unreachable' message
+                        if (list.children.length === 0) {
+                            document.getElementById('unreachable-none').textContent = 'No unreachable URLs found!';
+                            document.getElementById('unreachable-none').style.display = '';
+                        }
+                    } else {
+                        alert('Failed to delete URL.');
+                    }
+                } catch (err) {
+                    alert('Failed to delete URL: ' + err.message);
+                }
+            });
+        });
+    } else {
+        document.getElementById('unreachable-none').textContent = 'No unreachable URLs found!';
+        document.getElementById('unreachable-none').style.display = '';
+    }
+    btn.disabled = false;
+});
+</script>
 {% endblock %} 

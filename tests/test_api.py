@@ -38,14 +38,6 @@ def test_get_jwt_token(client, test_user, app_context):
     json_data = json.loads(response.data)
     assert 'access_token' in json_data
 
-def test_api_get_urls(client, test_user, sample_url, app_context):
-    token = get_auth_token(client)
-    response = client.get('/api/urls', headers=get_auth_headers(token))
-    assert response.status_code == 200
-    json_data = json.loads(response.data)
-    assert len(json_data) > 0
-    assert json_data[0]['url'] == 'http://example.com'
-
 def test_api_add_url(client, test_user, app_context):
     token = get_auth_token(client)
     response = client.post('/api/urls',
@@ -123,3 +115,37 @@ def test_api_add_url_with_api_token(client, test_user, app_context):
     assert response.status_code == 201
     json_data = json.loads(response.data)
     assert json_data['url'] == 'http://api-token-test.com'
+
+def test_api_check_urls_batch(client, test_user, sample_url, app_context, monkeypatch):
+    """Test the /api/check_urls_batch endpoint (POST)."""
+    # Patch requests.get to simulate a reachable URL
+    import requests
+    def mock_get(url, timeout, headers):
+        class MockResponse:
+            status_code = 200
+        return MockResponse()
+    monkeypatch.setattr(requests, 'get', mock_get)
+
+    # Log in as the test user (session cookie auth)
+    with client.session_transaction() as session:
+        session['_user_id'] = str(test_user.id)
+        session['_fresh'] = True
+    response = client.post('/api/check_urls_batch', json={'ids': [sample_url.id]})
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert 'results' in json_data
+    assert json_data['results'][0]['id'] == sample_url.id
+    assert json_data['results'][0]['reachable'] is True
+
+
+def test_api_get_session_urls(client, test_user, sample_url, app_context):
+    """Test the /api/session_urls endpoint (GET)."""
+    # Log in as the test user (session cookie auth)
+    with client.session_transaction() as session:
+        session['_user_id'] = str(test_user.id)
+        session['_fresh'] = True
+    response = client.get('/api/session_urls')
+    assert response.status_code == 200
+    json_data = json.loads(response.data)
+    assert isinstance(json_data, list)
+    assert any(url['id'] == sample_url.id for url in json_data)
