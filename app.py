@@ -883,20 +883,39 @@ def api_check_urls_batch():
         url_map = {u.id: u for u in urls}
         import requests
         results = []
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Cache-Control": "max-age=0",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Referer": "https://www.google.com/",
+        }
+        session = requests.Session()
+        session.headers.update(headers)
+
         for id_ in ids:
             url_obj = url_map.get(id_)
             if not url_obj:
                 results.append({'id': id_, 'reachable': False})
                 continue
+            reachable = False
             try:
-                resp = requests.get(url_obj.url, timeout=7, headers={'User-Agent': 'Mozilla/5.0'})
-                reachable = resp.status_code < 400
+                resp = session.get(url_obj.url, timeout=5, allow_redirects=True)
+                if (resp.status_code < 400) or (resp.status_code == 403):
+                    reachable = True
             except Exception:
                 reachable = False
             results.append({'id': id_, 'reachable': reachable})
         return jsonify({'results': results})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+    except Exception:
+        return jsonify({'error': 'Internal server error'}), 400
 
 @app.route('/api/session_urls', methods=['GET'])
 @login_required
