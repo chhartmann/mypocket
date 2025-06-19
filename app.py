@@ -330,8 +330,11 @@ def edit_url(id):
         return redirect(url_for('index'))
     if request.method == 'POST':
         new_url = request.form.get('url')
-        # Update title when URL changes
-        if new_url != url.url:
+        new_title = request.form.get('title')
+        # Update title when URL changes, or if user provided a new title
+        if new_title is not None and new_title.strip() != '':
+            url.title = new_title.strip()
+        else:
             url.title = fetch_webpage_title(new_url)
         url.url = new_url
         url.summary = request.form.get('summary')

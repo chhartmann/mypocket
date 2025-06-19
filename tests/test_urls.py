@@ -19,14 +19,17 @@ def test_add_url(auth_client, app_context):
 
 def test_edit_url(auth_client, sample_url, app_context):
     url_id = sample_url.id
-    response = auth_client.post(f'/edit/{url_id}', data={
+    new_title = 'Updated Title'
+    response = auth_client.post(f'/edit/{url_id}', data={ 
         'url': 'http://updated-example.com',
+        'title': new_title,
         'summary': 'Updated summary',
         'notes': 'Updated notes',
         'tags': 'updated,test'
     }, follow_redirects=True)
     assert response.status_code == 200
     assert b'http://updated-example.com' in response.data
+    assert new_title.encode() in response.data
 
 def test_delete_url(auth_client, sample_url, app_context):
     url_id = sample_url.id

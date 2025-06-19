@@ -8,6 +8,10 @@
         <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="mb-3">
+                <label for="title" class="form-label">Title</label>
+                <input type="text" class="form-control" id="title" name="title" value="{{ url.title }}">
+            </div>
+            <div class="mb-3">
                 <label for="url" class="form-label">URL</label>
                 <input type="url" class="form-control" id="url" name="url" value="{{ url.url }}" required>
             </div>
